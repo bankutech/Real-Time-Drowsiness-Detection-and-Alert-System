@@ -318,3 +318,46 @@ class ModelEvaluator:
         plt.close()
         logger.info(f"Saved benchmark comparison plot to {save_path}")
         return save_path
+
+    def plot_calibration_curves(self, y_test: np.ndarray) -> Path:
+        """
+        Plots multi-model Probability Calibration Reliability Curves and computes Brier Scores (Unit 2/5).
+        Evaluates probabilistic confidence trustworthiness for safety-critical deployment.
+        """
+        from sklearn.calibration import calibration_curve
+        from sklearn.metrics import brier_score_loss
+
+        fig, ax = plt.subplots(figsize=(9, 6.5))
+        y_test_bin = label_binarize(y_test, classes=range(self.n_classes))
+
+        # We evaluate calibration on the positive fatigue states (Drowsy / Sleep)
+        drowsy_idx = 2  # Drowsy state
+        ax.plot([0, 1], [0, 1], "k--", label="Perfect Calibration (Ideal)", lw=1.5)
+
+        colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b"]
+        c_idx = 0
+
+        for name, data in self.results.items():
+            if data["y_proba"] is not None:
+                prob_pos = data["y_proba"][:, drowsy_idx]
+                y_true_binary = (y_test == drowsy_idx).astype(int)
+
+                prob_true, prob_pred = calibration_curve(y_true_binary, prob_pos, n_bins=10, strategy="uniform")
+                brier = brier_score_loss(y_true_binary, prob_pos)
+
+                color = colors[c_idx % len(colors)]
+                ax.plot(prob_pred, prob_true, marker="o", lw=1.8, color=color, label=f"{name} (Brier={brier:.4f})")
+                c_idx += 1
+
+        ax.set_xlabel("Mean Predicted Probability P(State = Drowsy)", fontsize=11, fontweight="bold")
+        ax.set_ylabel("Empirical True Fraction of Positives", fontsize=11, fontweight="bold")
+        ax.set_title("Probability Calibration Reliability Diagram (Unit 2/5)", fontsize=13, fontweight="bold")
+        ax.legend(loc="lower right", fontsize=9, framealpha=0.9)
+        ax.grid(True, linestyle="--", alpha=0.5)
+
+        plt.tight_layout()
+        save_path = self.output_dir / "model_calibration_curves.png"
+        plt.savefig(save_path, dpi=300)
+        plt.close()
+        logger.info(f"Saved probability calibration curves to {save_path}")
+        return save_path

@@ -110,6 +110,78 @@ class DrowsinessHMM:
         logger.info("HMM Gaussian emission parameters fitted successfully.")
         return self
 
+    def fit_baum_welch(
+        self,
+        observations: np.ndarray,
+        max_iter: int = 40,
+        tol: float = 1e-4,
+        update_emissions: bool = True,
+    ) -> "DrowsinessHMM":
+        """
+        Baum-Welch Expectation-Maximization (EM) Algorithm (Unit 4).
+        Learns empirical transition matrix A, prior vector pi, and emission parameters (mu, sigma^2)
+        directly from sequential time-series observation frames.
+        """
+        logger.info(f"Starting Baum-Welch EM training on sequence of length T={observations.shape[0]} (max_iter={max_iter})...")
+        T = observations.shape[0]
+        prev_log_lik = -np.inf
+
+        # Ensure emissions initialized
+        if self.means is None or self.covars is None:
+            D = observations.shape[1]
+            self.means = np.random.randn(self.n_states, D)
+            self.covars = np.ones((self.n_states, D))
+
+        for iteration in range(max_iter):
+            # 1. Expectation Step: Compute emissions, alpha, beta, gamma, and xi
+            B = self.compute_emission_probs(observations)
+            alpha, c = self.forward(B)
+            beta = self.backward(B, c)
+
+            # Log-likelihood using scale factors: log P(O | lambda) = -sum(log(c_t))
+            log_lik = -float(np.sum(np.log(np.clip(c, 1e-12, None))))
+
+            # Smoothed state posteriors gamma[t, i] = P(S_t = i | O, lambda)
+            gamma = alpha * beta
+            gamma /= np.clip(gamma.sum(axis=1, keepdims=True), 1e-12, None)
+
+            # Transition posteriors xi[t, i, j] = P(S_t = i, S_{t+1} = j | O, lambda)
+            xi = np.zeros((T - 1, self.n_states, self.n_states), dtype=np.float64)
+            for t in range(T - 1):
+                numerator = alpha[t, :, None] * self.A * (B[t + 1] * beta[t + 1])[None, :]
+                denom = np.sum(numerator)
+                xi[t] = numerator / (denom + 1e-12)
+
+            # 2. Maximization Step: Re-estimate model parameters
+            # Prior update
+            self.pi = gamma[0] / np.sum(gamma[0])
+
+            # Transition matrix update
+            sum_xi = np.sum(xi, axis=0)  # (N_states, N_states)
+            sum_gamma = np.sum(gamma[:-1], axis=0, keepdims=True).T  # (N_states, 1)
+            self.A = sum_xi / np.clip(sum_gamma, 1e-12, None)
+            self.A /= self.A.sum(axis=1, keepdims=True)  # Row normalize
+
+            # Gaussian emission parameters update
+            if update_emissions and observations.shape[1] == self.means.shape[1]:
+                D = observations.shape[1]
+                for k in range(self.n_states):
+                    gamma_k = gamma[:, k]  # (T,)
+                    denom_k = np.sum(gamma_k) + 1e-12
+                    self.means[k] = np.sum(gamma_k[:, None] * observations, axis=0) / denom_k
+                    diff = observations - self.means[k]
+                    self.covars[k] = np.sum(gamma_k[:, None] * (diff ** 2), axis=0) / denom_k + 1e-4
+
+            # Check for convergence
+            delta_ll = log_lik - prev_log_lik
+            if iteration > 0 and abs(delta_ll) < tol:
+                logger.info(f"Baum-Welch converged at iteration {iteration+1} with LogLik={log_lik:.4f} (Delta={delta_ll:.6f})")
+                break
+            prev_log_lik = log_lik
+
+        logger.info(f"Baum-Welch EM optimization completed. Final LogLik={log_lik:.4f}")
+        return self
+
     def compute_emission_probs(self, observations: np.ndarray) -> np.ndarray:
         """
         Computes observation emission likelihood B[t, k] = P(O_t | S_t = k).

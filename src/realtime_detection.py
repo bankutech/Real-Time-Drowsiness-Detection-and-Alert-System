@@ -246,9 +246,15 @@ class DrowsinessDetectorPipeline:
                 )
                 pred_state = hmm_state
 
+        # Compute Shannon Predictive Entropy (Uncertainty Quantification)
+        prob_arr_safe = np.array(probas, dtype=np.float64) + 1e-12
+        entropy_val = float(-np.sum(prob_arr_safe * np.log(prob_arr_safe)))
+
         telemetry["predicted_state"] = pred_state
         telemetry["state_label"] = config.CLASS_LABELS[min(pred_state, len(config.CLASS_LABELS) - 1)]
-        telemetry["probabilities"] = [float(p) for p in probas]
+        telemetry["probabilities"] = [round(float(p), 4) for p in probas]
+        telemetry["uncertainty_entropy"] = round(entropy_val, 3)
+        telemetry["hmm_belief"] = [round(float(b), 4) for b in (self.prev_hmm_belief if self.prev_hmm_belief is not None else probas)]
 
         # 5. Alert Manager Update (Phase 8)
         alert_event = self.alert_manager.update(

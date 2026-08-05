@@ -107,24 +107,28 @@ def run_training_pipeline() -> None:
     pca.save()
 
     kmeans = DrowsinessKMeans(n_clusters=config.NUM_CLASSES)
-    kmeans.fit(X_train, y_train)
+    kmeans.fit(X_train)
+    kmeans.evaluate_clustering(X_train, y_train)
     kmeans.plot_elbow_and_silhouette(X_train, output_dir=config.CLUSTERING_OUTPUT_DIR)
     kmeans.save()
 
     gmm = DrowsinessGMM(n_components=config.NUM_CLASSES)
-    gmm.fit(X_train, y_train)
+    gmm.fit(X_train)
+    gmm.evaluate(X_train, y_train)
     gmm.plot_aic_bic_curves(X_train, output_dir=config.CLUSTERING_OUTPUT_DIR)
     gmm.save()
 
     hier = DrowsinessHierarchicalClustering(n_clusters=config.NUM_CLASSES)
-    hier.fit(X_train[:400], y_train[:400])
-    hier.plot_dendrogram(X_train[:400], output_dir=config.CLUSTERING_OUTPUT_DIR)
+    hier.fit_predict(X_train[:400])
+    hier.plot_dendrogram(output_dir=config.CLUSTERING_OUTPUT_DIR)
     hier.save()
 
     # 4. Unit 4: Hidden Markov Model
     logger.info("\n>>> [UNIT 4] Hidden Markov Model & Sequential Smoothing")
     hmm = DrowsinessHMM(n_states=config.NUM_CLASSES)
     hmm.fit_emissions(X_train, y_train)
+    # Unit 4 Baum-Welch Expectation-Maximization refinement on sequential time-series
+    hmm.fit_baum_welch(X_train[:600], max_iter=25, update_emissions=True)
     hmm.plot_transition_matrix(output_dir=config.EVAL_OUTPUT_DIR)
 
     raw_preds = bayes_clf.predict(X_test)
@@ -154,7 +158,7 @@ def run_training_pipeline() -> None:
     ada.plot_estimator_weights(output_dir=config.EVAL_OUTPUT_DIR)
     ada.save()
 
-    ensemble = DrowsinessEnsemble(voting_type="soft")
+    ensemble = DrowsinessEnsemble(voting_mode="soft")
     ensemble.fit(X_train, y_train)
     ensemble.evaluate(X_test, y_test)
     ensemble.save()
@@ -277,6 +281,7 @@ def run_evaluation_pipeline() -> None:
     # 10. Generate Visuals & Summary Reports
     evaluator.plot_confusion_matrices()
     evaluator.plot_roc_curves(y_test)
+    evaluator.plot_calibration_curves(y_test)
     evaluator.plot_benchmark_comparison()
 
     summary_df = evaluator.generate_summary_table()

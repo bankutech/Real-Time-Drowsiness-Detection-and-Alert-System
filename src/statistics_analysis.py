@@ -242,6 +242,58 @@ class StatisticalAnalyzer:
         logger.info(f"Saved scatter plots to {save_path}")
         return save_path
 
+    def compute_variance_inflation_factors(self) -> pd.DataFrame:
+        """
+        Computes Variance Inflation Factor (VIF) for all biometric feature channels (Unit 1/3).
+        VIF_j = 1 / (1 - R_j^2) via auxiliary OLS regressions to detect multicollinearity.
+        """
+        from sklearn.linear_model import LinearRegression
+        vif_data = []
+        features = [c for c in self.feature_cols if c in self.df.columns]
+        X = self.df[features].dropna().values
+
+        for i, feat in enumerate(features):
+            y_aux = X[:, i]
+            X_aux = np.delete(X, i, axis=1)
+            reg = LinearRegression().fit(X_aux, y_aux)
+            r_sq = reg.score(X_aux, y_aux)
+            vif = 1.0 / max(1e-4, (1.0 - r_sq))
+            vif_data.append({"Feature": feat, "VIF": round(vif, 2), "R_Squared": round(r_sq, 4)})
+
+        vif_df = pd.DataFrame(vif_data).sort_values(by="VIF", ascending=False).reset_index(drop=True)
+        vif_csv = self.output_dir / "vif_analysis.csv"
+        vif_df.to_csv(vif_csv, index=False)
+        logger.info(f"Saved Variance Inflation Factor (VIF) metrics to {vif_csv}")
+        return vif_df
+
+    def plot_vif_analysis(self) -> Path:
+        """Plots feature Variance Inflation Factors (VIF) bar chart with severity thresholds."""
+        vif_df = self.compute_variance_inflation_factors()
+        plt.figure(figsize=(10, 5))
+
+        colors = ["#e74c3c" if v > 10.0 else "#f39c12" if v > 5.0 else "#2ecc71" for v in vif_df["VIF"]]
+        bars = plt.barh(vif_df["Feature"][::-1], vif_df["VIF"][::-1], color=colors[::-1], edgecolor="#222222", linewidth=1.0)
+
+        plt.axvline(x=5.0, color="#f39c12", linestyle="--", linewidth=1.5, label="Moderate Collinearity (VIF=5)")
+        plt.axvline(x=10.0, color="#e74c3c", linestyle="--", linewidth=1.5, label="High Collinearity (VIF=10)")
+
+        plt.title("Variance Inflation Factor (VIF) Multicollinearity Diagnostics (Unit 1)", fontsize=13, fontweight="bold", pad=12)
+        plt.xlabel("VIF Score (1 / (1 - R^2))", fontsize=10, fontweight="semibold")
+        plt.ylabel("Biometric Feature", fontsize=10, fontweight="semibold")
+        plt.legend(loc="lower right", frameon=True)
+        plt.grid(axis="x", linestyle="--", alpha=0.6)
+
+        for bar in bars:
+            w = bar.get_width()
+            plt.text(w + 0.2, bar.get_y() + bar.get_height() / 2.0, f"{w:.1f}", va="center", ha="left", fontsize=9, fontweight="bold")
+
+        plt.tight_layout()
+        save_path = self.output_dir / "vif_analysis.png"
+        plt.savefig(save_path, dpi=300)
+        plt.close()
+        logger.info(f"Saved VIF analysis plot to {save_path}")
+        return save_path
+
     def run_full_analysis(self) -> Dict[str, Any]:
         """Runs full Unit 1 statistical and EDA pipeline and outputs all artifacts."""
         logger.info("Executing comprehensive Unit 1 statistical analysis...")
@@ -254,6 +306,7 @@ class StatisticalAnalyzer:
             "histogram_plot": str(self.plot_feature_histograms()),
             "boxplot_plot": str(self.plot_feature_boxplots()),
             "scatter_plot": str(self.plot_scatter_plots()),
+            "vif_plot": str(self.plot_vif_analysis()),
         }
         logger.info("Unit 1 Statistical Analysis completed successfully.")
         return {

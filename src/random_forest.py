@@ -160,11 +160,24 @@ class DrowsinessRandomForest:
         ax.grid(True, linestyle="--", alpha=0.5)
 
         plt.tight_layout()
-        save_path = out_dir / "random_forest_oob_trees.png"
+        save_path = out_dir / "random_forest_oob_convergence.png"
         plt.savefig(save_path, dpi=300)
         plt.close()
         logger.info(f"Saved Random Forest OOB convergence plot to {save_path}")
         return save_path
+
+    def plot_oob_error_curve(
+        self,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_test: Optional[np.ndarray] = None,
+        y_test: Optional[np.ndarray] = None,
+        output_dir: Optional[Path] = None,
+    ) -> Path:
+        """Alias and wrapper for OOB error curve plotting."""
+        X_t = X_train if X_test is None else X_test
+        y_t = y_train if y_test is None else y_test
+        return self.plot_oob_convergence(X_train, y_train, X_t, y_t, output_dir=output_dir)
 
     def save(self, filename: str = "random_forest.joblib") -> Path:
         """Saves model artifact."""

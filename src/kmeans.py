@@ -124,6 +124,10 @@ class DrowsinessKMeans:
         logger.info(f"Saved Elbow & Silhouette plot to {save_path}")
         return save_path, inertias, silhouettes
 
+    def plot_elbow_and_silhouette(self, X: np.ndarray, output_dir: Optional[Path] = None):
+        """Alias for run_elbow_and_silhouette_analysis."""
+        return self.run_elbow_and_silhouette_analysis(X, output_dir=output_dir)
+
     def plot_clusters_2d(self, X: np.ndarray, X_2d: np.ndarray, output_dir: Optional[Path] = None) -> Path:
         """Plots 2D cluster assignments with projected centroids."""
         out_dir = output_dir or config.CLUSTERING_OUTPUT_DIR

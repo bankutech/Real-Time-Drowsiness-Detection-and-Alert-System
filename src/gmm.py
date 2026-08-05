@@ -120,6 +120,10 @@ class DrowsinessGMM:
         logger.info(f"Saved GMM AIC/BIC plot to {save_path}")
         return save_path, aics, bics
 
+    def plot_aic_bic_curves(self, X: np.ndarray, output_dir: Optional[Path] = None):
+        """Alias for run_model_selection_aic_bic."""
+        return self.run_model_selection_aic_bic(X, output_dir=output_dir)
+
     def plot_clusters_with_ellipses_2d(self, X_2d: np.ndarray, output_dir: Optional[Path] = None) -> Path:
         """
         Fits a 2D GMM on projected PCA features and plots 2-standard-deviation confidence ellipses.

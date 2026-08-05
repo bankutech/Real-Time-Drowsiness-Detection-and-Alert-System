@@ -83,12 +83,12 @@ class DrowsinessHierarchicalClustering:
 
         return self.metrics
 
-    def plot_dendrogram(self, output_dir: Optional[Path] = None, max_d: Optional[float] = None) -> Path:
+    def plot_dendrogram(self, *args, output_dir: Optional[Path] = None, max_d: Optional[float] = None, **kwargs) -> Path:
         """Generates Hierarchical Tree Dendrogram visualization."""
         if self.linkage_matrix is None:
             raise ValueError("Model must be fitted before plotting dendrogram.")
 
-        out_dir = output_dir or config.CLUSTERING_OUTPUT_DIR
+        out_dir = output_dir or (args[0] if len(args) > 0 and isinstance(args[0], (str, Path)) else config.CLUSTERING_OUTPUT_DIR)
         out_dir.mkdir(parents=True, exist_ok=True)
 
         fig, ax = plt.subplots(figsize=(12, 6))

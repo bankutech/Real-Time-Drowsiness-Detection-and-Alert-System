@@ -100,6 +100,10 @@ class PCAReducer:
         logger.info(f"Saved PCA Scree plot to {save_path}")
         return save_path
 
+    def plot_scree_plot(self, output_dir: Optional[Path] = None) -> Path:
+        """Alias for plot_scree."""
+        return self.plot_scree(output_dir=output_dir)
+
     def plot_2d_projection(self, X: np.ndarray, y: np.ndarray, title: str = "PCA 2D Projection", output_dir: Optional[Path] = None) -> Path:
         """Plots 2D projection colored by driver states."""
         out_dir = output_dir or config.CLUSTERING_OUTPUT_DIR
