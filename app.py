@@ -112,20 +112,22 @@ class AsyncVideoCapture:
                 pass
 
 
-def background_stream_worker(camera_idx: int = 0, use_simulation: bool = False):
-    """Generates continuous low-latency live frames and runs ML/HMM/Alert pipeline."""
-    global latest_frame_jpeg, latest_telemetry, global_pipeline, stream_active, sim_state_idx, last_client_post_time, frame_version
+server_async_cam = None
 
-    async_cam = None
+def background_stream_worker(camera_idx: int = 0, use_simulation: bool = True):
+    """Generates continuous low-latency live frames and runs ML/HMM/Alert pipeline."""
+    global latest_frame_jpeg, latest_telemetry, global_pipeline, stream_active, sim_state_idx, last_client_post_time, frame_version, server_async_cam
+
     if not use_simulation:
-        async_cam = AsyncVideoCapture(camera_idx)
-        if not async_cam.is_opened():
+        server_async_cam = AsyncVideoCapture(camera_idx)
+        if not server_async_cam.is_opened():
             logger.warning(f"Physical webcam {camera_idx} unavailable. Falling back to dynamic simulation stream.")
             use_simulation = True
+            server_async_cam = None
         else:
             logger.info(f"Connected to physical webcam device index {camera_idx} via low-latency async grabber.")
     else:
-        logger.info("Starting stream worker in synthetic simulation mode.")
+        logger.info("Starting stream worker in synthetic simulation mode (webcam hardware free for browser).")
 
     sim_cycle = (
         ["alert"] * 70
@@ -142,12 +144,17 @@ def background_stream_worker(camera_idx: int = 0, use_simulation: bool = False):
             continue
 
         frame = None
-        if not use_simulation and async_cam and async_cam.is_opened():
-            ret, frame = async_cam.read_latest()
+        if not use_simulation and server_async_cam and server_async_cam.is_opened():
+            ret, frame = server_async_cam.read_latest()
             if not ret or frame is None or float(np.mean(frame)) < 2.5:
                 failed_reads += 1
-                if failed_reads > 15:
-                    logger.warning("Physical webcam returning blank/black sensor frames. Switching to dynamic simulation fallback.")
+                if failed_reads > 10:
+                    logger.warning("Physical webcam returning blank/black sensor frames. Releasing camera handle and switching to dynamic simulation fallback.")
+                    try:
+                        server_async_cam.release()
+                    except Exception:
+                        pass
+                    server_async_cam = None
                     use_simulation = True
                 time.sleep(0.01)
                 continue
@@ -179,8 +186,12 @@ def background_stream_worker(camera_idx: int = 0, use_simulation: bool = False):
 
         time.sleep(0.005)
 
-    if async_cam:
-        async_cam.release()
+    if server_async_cam:
+        try:
+            server_async_cam.release()
+        except Exception:
+            pass
+        server_async_cam = None
 
 
 HTML_DASHBOARD = """<!DOCTYPE html>
@@ -1155,9 +1166,23 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
         if (!browserCamActive) {
             try {
-                browserCamStream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
-                });
+                // Ensure backend releases any hardware device lock
+                await fetch('/api/release_camera').catch(() => {});
+                
+                let stream = null;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
+                    });
+                } catch (e1) {
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    } catch (e2) {
+                        throw new Error('Camera device is busy or permission was not granted. Please ensure other camera apps (like Zoom/Teams or other tabs) are closed.');
+                    }
+                }
+                
+                browserCamStream = stream;
                 vidEl.srcObject = browserCamStream;
                 await vidEl.play();
 
@@ -1206,7 +1231,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 }
                 clientLoopTimer = setInterval(sendAiFrame, 100);
             } catch (err) {
-                alert('Could not access browser webcam: ' + err.message);
+                alert('Webcam access notice: ' + err.message);
             }
         } else {
             browserCamActive = false;
@@ -1631,6 +1656,21 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(latest_telemetry, cls=NpEncoder).encode("utf-8"))
 
+        elif self.path == "/api/release_camera":
+            global server_async_cam
+            with pipeline_lock:
+                if server_async_cam:
+                    try:
+                        server_async_cam.release()
+                    except Exception:
+                        pass
+                    server_async_cam = None
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "released"}).encode("utf-8"))
+
         elif self.path == "/api/calibrate":
             with pipeline_lock:
                 if global_pipeline:
@@ -1735,7 +1775,7 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
 
-def run_web_server(port: int = 8080, camera_idx: int = 0, use_simulation: bool = False):
+def run_web_server(port: int = 8080, camera_idx: int = 0, use_simulation: bool = True):
     """Starts the real-time web server and background stream worker."""
     global global_pipeline, stream_active
 
@@ -1768,7 +1808,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Real-Time Drowsiness Detection Web App")
     parser.add_argument("--port", type=int, default=8080, help="Web server port (default: 8080)")
     parser.add_argument("--camera", type=int, default=0, help="Camera index (default: 0)")
-    parser.add_argument("--simulate", action="store_true", help="Force synthetic simulation stream instead of live physical camera")
+    parser.add_argument("--physical-cam", action="store_true", help="Lock physical webcam on backend server instead of browser")
     args = parser.parse_args()
 
-    run_web_server(port=args.port, camera_idx=args.camera, use_simulation=args.simulate)
+    run_web_server(port=args.port, camera_idx=args.camera, use_simulation=not args.physical_cam)
