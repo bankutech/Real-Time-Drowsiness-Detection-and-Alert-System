@@ -144,10 +144,10 @@ def background_stream_worker(camera_idx: int = 0, use_simulation: bool = False):
         frame = None
         if not use_simulation and async_cam and async_cam.is_opened():
             ret, frame = async_cam.read_latest()
-            if not ret or frame is None:
+            if not ret or frame is None or float(np.mean(frame)) < 2.5:
                 failed_reads += 1
-                if failed_reads > 60:
-                    logger.warning("Physical webcam stream interrupted. Switching to simulation fallback.")
+                if failed_reads > 15:
+                    logger.warning("Physical webcam returning blank/black sensor frames. Switching to dynamic simulation fallback.")
                     use_simulation = True
                 time.sleep(0.01)
                 continue
@@ -723,12 +723,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                         <span class="card-title">Live Cockpit HUD</span>
                         <span id="fps-badge" class="card-badge">FPS: -- | Latency: -- ms</span>
                     </div>
-                    <div class="video-wrap">
+                    <div class="video-wrap" id="video-wrap">
                         <div class="corner corner--tl"></div>
                         <div class="corner corner--tr"></div>
                         <div class="corner corner--bl"></div>
                         <div class="corner corner--br"></div>
                         <img src="/video_feed" alt="Real-Time Driver Stream" id="video-stream">
+                        <video id="browser-video" autoplay playsinline muted style="display:none; width:100%; height:100%; object-fit:cover; border-radius:10px;"></video>
+                        <canvas id="hud-overlay-canvas" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; border-radius:10px; z-index:5;"></canvas>
                     </div>
                     <div class="pills stagger">
                         <div class="pill">
@@ -1141,64 +1143,68 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     // ===== BROWSER WEBCAM =====
     let browserCamActive = false;
     let browserCamStream = null;
-    let camVideo = null;
     let camCanvas = null;
     let isPostingFrame = false;
     let clientLoopTimer = null;
 
     async function toggleBrowserWebcam() {
         initAudio();
+        const imgEl = document.getElementById('video-stream');
+        const vidEl = document.getElementById('browser-video');
+        const hudCanvas = document.getElementById('hud-overlay-canvas');
+
         if (!browserCamActive) {
             try {
                 browserCamStream = await navigator.mediaDevices.getUserMedia({
                     video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
                 });
-                if (!camVideo) {
-                    camVideo = document.createElement('video');
-                    camVideo.autoplay = true;
-                    camVideo.playsInline = true;
-                    camVideo.muted = true;
-                }
-                camVideo.srcObject = browserCamStream;
-                await camVideo.play();
+                vidEl.srcObject = browserCamStream;
+                await vidEl.play();
+
+                imgEl.style.display = 'none';
+                vidEl.style.display = 'block';
+                hudCanvas.style.display = 'block';
+                hudCanvas.width = vidEl.videoWidth || 640;
+                hudCanvas.height = vidEl.videoHeight || 480;
+
                 if (!camCanvas) {
                     camCanvas = document.createElement('canvas');
-                    camCanvas.width = 640;
-                    camCanvas.height = 480;
+                    camCanvas.width = 320;
+                    camCanvas.height = 240;
                 }
+
                 browserCamActive = true;
                 document.getElementById('cam-icon').innerText = '\\u23F9\\uFE0F';
                 document.getElementById('cam-label').innerText = 'Stop Webcam';
                 document.getElementById('btn-webcam').style.borderColor = 'var(--accent)';
                 document.getElementById('btn-webcam').style.color = 'var(--accent)';
 
-                async function frameLoop() {
-                    if (!browserCamActive) return;
-                    if (!isPostingFrame && camVideo.readyState >= 2) {
-                        isPostingFrame = true;
-                        try {
-                            const ctx = camCanvas.getContext('2d');
-                            ctx.drawImage(camVideo, 0, 0, 640, 480);
-                            const blob = await new Promise(r => camCanvas.toBlob(r, 'image/jpeg', 0.82));
-                            if (blob && browserCamActive) {
-                                const resp = await fetch('/api/process_frame', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'image/jpeg' },
-                                    body: blob
-                                });
-                                if (resp.ok) {
-                                    const telem = await resp.json();
-                                    renderTelemetryData(telem);
-                                }
+                async function sendAiFrame() {
+                    if (!browserCamActive || isPostingFrame || vidEl.readyState < 2) return;
+                    isPostingFrame = true;
+                    try {
+                        const ctx = camCanvas.getContext('2d');
+                        ctx.drawImage(vidEl, 0, 0, 320, 240);
+                        const blob = await new Promise(r => camCanvas.toBlob(r, 'image/jpeg', 0.70));
+                        if (blob && browserCamActive) {
+                            const resp = await fetch('/api/process_frame', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'image/jpeg' },
+                                body: blob
+                            });
+                            if (resp.ok) {
+                                const telem = await resp.json();
+                                renderTelemetryData(telem);
+                                drawClientHud(hudCanvas, telem);
                             }
-                        } catch (err) {
-                            // Suppress client aborts
-                        } finally {
-                            isPostingFrame = false;
                         }
+                    } catch (err) {
+                        // Ignore transient drops
+                    } finally {
+                        isPostingFrame = false;
                     }
                 }
-                clientLoopTimer = setInterval(frameLoop, 33);
+                clientLoopTimer = setInterval(sendAiFrame, 100);
             } catch (err) {
                 alert('Could not access browser webcam: ' + err.message);
             }
@@ -1209,10 +1215,50 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 browserCamStream.getTracks().forEach(t => t.stop());
                 browserCamStream = null;
             }
+            vidEl.style.display = 'none';
+            hudCanvas.style.display = 'none';
+            imgEl.style.display = 'block';
+
             document.getElementById('cam-icon').innerText = '\\uD83D\\uDCF7';
             document.getElementById('cam-label').innerText = 'My Webcam';
             document.getElementById('btn-webcam').style.borderColor = 'var(--border)';
             document.getElementById('btn-webcam').style.color = 'var(--text-2)';
+        }
+    }
+
+    function drawClientHud(canvas, d) {
+        if (!canvas || !d) return;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const lvl = d.alert_level || 0;
+        let bannerColor = 'rgba(16, 185, 129, 0.85)';
+        if (lvl === 1) bannerColor = 'rgba(245, 158, 11, 0.85)';
+        if (lvl === 2) bannerColor = 'rgba(244, 63, 94, 0.90)';
+
+        ctx.fillStyle = 'rgba(12, 19, 36, 0.75)';
+        ctx.strokeStyle = 'rgba(56, 80, 135, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(14, 14, 250, 40, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = bannerColor;
+        ctx.beginPath();
+        ctx.arc(28, 34, 6, 0, 2 * Math.PI);
+        ctx.fill();
+
+        ctx.fillStyle = '#e8edf5';
+        ctx.font = 'bold 12px "Inter", system-ui, sans-serif';
+        ctx.fillText(d.status_text || 'STATUS: ALERT', 42, 38);
+
+        if (lvl > 0) {
+            ctx.lineWidth = lvl === 2 ? 8 : 4;
+            ctx.strokeStyle = lvl === 2 ? '#f43f5e' : '#f59e0b';
+            ctx.strokeRect(0, 0, w, h);
         }
     }
 
