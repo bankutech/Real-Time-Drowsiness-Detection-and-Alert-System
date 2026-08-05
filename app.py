@@ -37,6 +37,7 @@ from tests.test_phase8 import generate_synthetic_driver_frame
 logger = setup_logger("AppServer")
 
 # Global pipeline instance and stream state
+last_client_post_time: float = 0.0
 pipeline_lock = threading.Lock()
 global_pipeline: Optional[DrowsinessDetectorPipeline] = None
 latest_frame_jpeg: bytes = b""
@@ -45,22 +46,48 @@ stream_active = True
 sim_state_idx = 0
 
 
-def background_stream_worker(camera_idx: int = 0, use_simulation: bool = True):
-    """Generates continuous frames and runs ML/HMM/Alert pipeline in background."""
-    global latest_frame_jpeg, latest_telemetry, global_pipeline, stream_active, sim_state_idx
+def open_hardware_camera(camera_idx: int = 0) -> Optional[cv2.VideoCapture]:
+    """Attempts to open physical webcam with DirectShow on Windows for instant low-latency capture."""
+    cap = None
+    if sys.platform.startswith("win"):
+        try:
+            cap = cv2.VideoCapture(camera_idx, cv2.CAP_DSHOW)
+            if cap.isOpened():
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                cap.set(cv2.CAP_PROP_FPS, 30)
+                return cap
+        except Exception as e:
+            logger.debug(f"DirectShow open notice: {e}")
 
-    logger.info(f"Starting stream worker (Simulation={use_simulation})...")
+    try:
+        cap = cv2.VideoCapture(camera_idx)
+        if cap.isOpened():
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            return cap
+    except Exception as e:
+        logger.debug(f"Default VideoCapture open notice: {e}")
+
+    return None
+
+
+def background_stream_worker(camera_idx: int = 0, use_simulation: bool = False):
+    """Generates continuous live frames and runs ML/HMM/Alert pipeline in background."""
+    global latest_frame_jpeg, latest_telemetry, global_pipeline, stream_active, sim_state_idx, last_client_post_time
 
     cap = None
     if not use_simulation:
-        try:
-            cap = cv2.VideoCapture(camera_idx)
-            if not cap or not cap.isOpened():
-                logger.warning(f"Webcam {camera_idx} unavailable. Falling back to dynamic simulation stream.")
-                use_simulation = True
-        except Exception as e:
-            logger.warning(f"Could not open webcam: {e}. Falling back to simulation.")
+        cap = open_hardware_camera(camera_idx)
+        if cap is None:
+            logger.warning(f"Physical webcam {camera_idx} unavailable. Falling back to dynamic simulation stream.")
             use_simulation = True
+        else:
+            logger.info(f"Connected to physical webcam device index {camera_idx} successfully.")
+    else:
+        logger.info("Starting stream worker in synthetic simulation mode.")
 
     sim_cycle = (
         ["alert"] * 70
@@ -71,15 +98,20 @@ def background_stream_worker(camera_idx: int = 0, use_simulation: bool = True):
 
     failed_reads = 0
     while stream_active:
+        # If client browser is actively POSTing frames via /api/process_frame, pause worker loop to avoid clashing
+        if time.time() - last_client_post_time < 1.5:
+            time.sleep(0.04)
+            continue
+
         frame = None
         if not use_simulation and cap and cap.isOpened():
             ret, frame = cap.read()
             if not ret or frame is None:
                 failed_reads += 1
-                if failed_reads > 10:
-                    logger.warning("Webcam frame capture failing. Falling back to dynamic simulation stream.")
+                if failed_reads > 15:
+                    logger.warning("Physical webcam stream interrupted. Switching to simulation fallback.")
                     use_simulation = True
-                time.sleep(0.04)
+                time.sleep(0.03)
                 continue
             else:
                 failed_reads = 0
@@ -95,11 +127,11 @@ def background_stream_worker(camera_idx: int = 0, use_simulation: bool = True):
                     latest_telemetry = telem
 
                     # Encode to JPEG
-                    ret, jpeg = cv2.imencode(".jpg", hud_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+                    ret, jpeg = cv2.imencode(".jpg", hud_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
                     if ret:
                         latest_frame_jpeg = jpeg.tobytes()
 
-        time.sleep(0.035)  # ~28 FPS stream rate
+        time.sleep(0.028)  # ~35 FPS stream rate
 
     if cap:
         cap.release()
@@ -1065,7 +1097,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     let browserCamStream = null;
     let camVideo = null;
     let camCanvas = null;
-    let sendInterval = null;
+    let isPostingFrame = false;
+    let clientLoopTimer = null;
 
     async function toggleBrowserWebcam() {
         initAudio();
@@ -1074,30 +1107,62 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 browserCamStream = await navigator.mediaDevices.getUserMedia({
                     video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
                 });
-                if (!camVideo) { camVideo = document.createElement('video'); camVideo.autoplay = true; camVideo.playsInline = true; camVideo.muted = true; }
+                if (!camVideo) {
+                    camVideo = document.createElement('video');
+                    camVideo.autoplay = true;
+                    camVideo.playsInline = true;
+                    camVideo.muted = true;
+                }
                 camVideo.srcObject = browserCamStream;
                 await camVideo.play();
-                if (!camCanvas) { camCanvas = document.createElement('canvas'); camCanvas.width = 640; camCanvas.height = 480; }
+                if (!camCanvas) {
+                    camCanvas = document.createElement('canvas');
+                    camCanvas.width = 640;
+                    camCanvas.height = 480;
+                }
                 browserCamActive = true;
                 document.getElementById('cam-icon').innerText = '\\u23F9\\uFE0F';
                 document.getElementById('cam-label').innerText = 'Stop Webcam';
                 document.getElementById('btn-webcam').style.borderColor = 'var(--accent)';
                 document.getElementById('btn-webcam').style.color = 'var(--accent)';
-                const ctx = camCanvas.getContext('2d');
-                sendInterval = setInterval(() => {
-                    if (!browserCamActive || camVideo.readyState < 2) return;
-                    ctx.drawImage(camVideo, 0, 0, 640, 480);
-                    camCanvas.toBlob((blob) => {
-                        if (blob && browserCamActive) {
-                            fetch('/api/process_frame', { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob }).catch(() => {});
+
+                async function frameLoop() {
+                    if (!browserCamActive) return;
+                    if (!isPostingFrame && camVideo.readyState >= 2) {
+                        isPostingFrame = true;
+                        try {
+                            const ctx = camCanvas.getContext('2d');
+                            ctx.drawImage(camVideo, 0, 0, 640, 480);
+                            const blob = await new Promise(r => camCanvas.toBlob(r, 'image/jpeg', 0.82));
+                            if (blob && browserCamActive) {
+                                const resp = await fetch('/api/process_frame', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'image/jpeg' },
+                                    body: blob
+                                });
+                                if (resp.ok) {
+                                    const telem = await resp.json();
+                                    renderTelemetryData(telem);
+                                }
+                            }
+                        } catch (err) {
+                            // Suppress client aborts
+                        } finally {
+                            isPostingFrame = false;
                         }
-                    }, 'image/jpeg', 0.75);
-                }, 65);
-            } catch (err) { alert('Could not access browser webcam: ' + err.message); }
+                    }
+                }
+                clientLoopTimer = setInterval(frameLoop, 33);
+            } catch (err) {
+                alert('Could not access browser webcam: ' + err.message);
+            }
         } else {
             browserCamActive = false;
-            if (sendInterval) clearInterval(sendInterval);
-            if (browserCamStream) { browserCamStream.getTracks().forEach(t => t.stop()); browserCamStream = null; }
+            if (clientLoopTimer) clearInterval(clientLoopTimer);
+            if (browserCamStream) {
+                browserCamStream.getTracks().forEach(t => t.stop());
+                browserCamStream = null;
+            }
             document.getElementById('cam-icon').innerText = '\\uD83D\\uDCF7';
             document.getElementById('cam-label').innerText = 'My Webcam';
             document.getElementById('btn-webcam').style.borderColor = 'var(--border)';
@@ -1177,55 +1242,53 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         }).catch(e => console.error('Model switch error:', e));
     }
 
-    // ===== TELEMETRY POLLER =====
-    function pollTelemetry() {
-        fetch('/api/telemetry').then(r => r.json()).then(d => {
-            if (!d || Object.keys(d).length === 0) return;
+    // ===== TELEMETRY RENDERER =====
+    function renderTelemetryData(d) {
+        if (!d || Object.keys(d).length === 0) return;
 
-            const fps = d.fps || '--';
-            const lat = (d.latency_ms || 0).toFixed(1);
-            document.getElementById('fps-badge').innerText = 'FPS: ' + fps + ' | Latency: ' + lat + ' ms';
-            document.getElementById('stat-fps').innerText = fps + ' FPS';
-            document.getElementById('stat-latency').innerText = lat + ' ms';
+        const fps = d.fps || '--';
+        const lat = (d.latency_ms || 0).toFixed(1);
+        document.getElementById('fps-badge').innerText = 'FPS: ' + fps + ' | Latency: ' + lat + ' ms';
+        document.getElementById('stat-fps').innerText = fps + ' FPS';
+        document.getElementById('stat-latency').innerText = lat + ' ms';
 
-            document.getElementById('val-ear').innerText = (d.ear || 0).toFixed(2);
-            document.getElementById('val-mar').innerText = (d.mar || 0).toFixed(2);
-            document.getElementById('val-perclos').innerText = ((d.perclos || 0) * 100).toFixed(1) + '%';
-            document.getElementById('val-fatigue').innerText = ((d.fatigue_score || 0) * 100).toFixed(1) + '%';
-            document.getElementById('val-pose').innerText = 'P: ' + (d.pitch||0).toFixed(0) + '\\u00B0 | Y: ' + (d.yaw||0).toFixed(0) + '\\u00B0 | R: ' + (d.roll||0).toFixed(0) + '\\u00B0';
+        document.getElementById('val-ear').innerText = (d.ear || 0).toFixed(2);
+        document.getElementById('val-mar').innerText = (d.mar || 0).toFixed(2);
+        document.getElementById('val-perclos').innerText = ((d.perclos || 0) * 100).toFixed(1) + '%';
+        document.getElementById('val-fatigue').innerText = ((d.fatigue_score || 0) * 100).toFixed(1) + '%';
+        document.getElementById('val-pose').innerText = 'P: ' + (d.pitch||0).toFixed(0) + '\\u00B0 | Y: ' + (d.yaw||0).toFixed(0) + '\\u00B0 | R: ' + (d.roll||0).toFixed(0) + '\\u00B0';
 
-            const earP = Math.min(100, Math.max(0, ((d.ear||0) / 0.45) * 100));
-            const marP = Math.min(100, Math.max(0, ((d.mar||0) / 0.85) * 100));
-            const pclP = Math.min(100, Math.max(0, (d.perclos||0) * 100));
-            const fatP = Math.min(100, Math.max(0, (d.fatigue_score||0) * 100));
+        const earP = Math.min(100, Math.max(0, ((d.ear||0) / 0.45) * 100));
+        const marP = Math.min(100, Math.max(0, ((d.mar||0) / 0.85) * 100));
+        const pclP = Math.min(100, Math.max(0, (d.perclos||0) * 100));
+        const fatP = Math.min(100, Math.max(0, (d.fatigue_score||0) * 100));
 
-            setGauge('bar-ear', earP, d.ear < 0.23 ? 'danger-fill' : '');
-            setGauge('bar-mar', marP, d.mar > 0.60 ? 'danger-fill' : '');
-            setGauge('bar-perclos', pclP, d.perclos > 0.20 ? 'danger-fill' : '');
-            setGauge('bar-fatigue', fatP, d.fatigue_score > 0.65 ? 'danger-fill' : (d.fatigue_score > 0.40 ? 'warn-fill' : ''));
+        setGauge('bar-ear', earP, d.ear < 0.23 ? 'danger-fill' : '');
+        setGauge('bar-mar', marP, d.mar > 0.60 ? 'danger-fill' : '');
+        setGauge('bar-perclos', pclP, d.perclos > 0.20 ? 'danger-fill' : '');
+        setGauge('bar-fatigue', fatP, d.fatigue_score > 0.65 ? 'danger-fill' : (d.fatigue_score > 0.40 ? 'warn-fill' : ''));
 
-            const lvl = d.alert_level || 0;
-            document.getElementById('alert-banner').className = 'alert-banner alert-level-' + lvl;
-            document.getElementById('alert-text').innerText = d.status_text || 'STATUS: DRIVER ALERT';
-            document.getElementById('alert-badge').innerText = 'LEVEL ' + lvl;
-            if (lvl > 0) playAlertTone(lvl);
+        const lvl = d.alert_level || 0;
+        document.getElementById('alert-banner').className = 'alert-banner alert-level-' + lvl;
+        document.getElementById('alert-text').innerText = d.status_text || 'STATUS: DRIVER ALERT';
+        document.getElementById('alert-badge').innerText = 'LEVEL ' + lvl;
+        if (lvl > 0) playAlertTone(lvl);
 
-            const pBase = document.getElementById('pill-baseline');
-            if (d.calibrating) { pBase.innerText = 'Calibrating ' + (d.calibration_progress||0) + '%'; pBase.className = 'pill-val warn'; }
-            else { pBase.innerText = (d.baseline_ear||0.32).toFixed(3) + ' (Ready)'; pBase.className = 'pill-val ok'; }
+        const pBase = document.getElementById('pill-baseline');
+        if (d.calibrating) { pBase.innerText = 'Calibrating ' + (d.calibration_progress||0) + '%'; pBase.className = 'pill-val warn'; }
+        else { pBase.innerText = (d.baseline_ear||0.32).toFixed(3) + ' (Ready)'; pBase.className = 'pill-val ok'; }
 
-            const pSp = document.getElementById('pill-speech');
-            pSp.innerText = d.is_speaking ? '\\uD83D\\uDDE3\\uFE0F Speaking' : 'Silent';
-            pSp.className = d.is_speaking ? 'pill-val ok' : 'pill-val';
+        const pSp = document.getElementById('pill-speech');
+        pSp.innerText = d.is_speaking ? '\\uD83D\\uDDE3\\uFE0F Speaking' : 'Silent';
+        pSp.className = d.is_speaking ? 'pill-val ok' : 'pill-val';
 
-            const pLi = document.getElementById('pill-light');
-            pLi.innerText = d.lighting_quality || 'Optimal';
-            pLi.className = d.low_light ? 'pill-val warn' : 'pill-val ok';
+        const pLi = document.getElementById('pill-light');
+        pLi.innerText = d.lighting_quality || 'Optimal';
+        pLi.className = d.low_light ? 'pill-val warn' : 'pill-val ok';
 
-            const pEy = document.getElementById('pill-eyewear');
-            if (d.eyewear_detected) { pEy.innerText = '\\uD83D\\uDD76\\uFE0F Eyewear'; pEy.className = 'pill-val warn'; }
-            else { pEy.innerText = 'Normal'; pEy.className = 'pill-val ok'; }
-        }).catch(() => {});
+        const pEy = document.getElementById('pill-eyewear');
+        if (d.eyewear_detected) { pEy.innerText = '\\uD83D\\uDD76\\uFE0F Eyewear'; pEy.className = 'pill-val warn'; }
+        else { pEy.innerText = 'Normal'; pEy.className = 'pill-val ok'; }
     }
 
     function setGauge(id, pct, cls) {
@@ -1234,7 +1297,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         el.className = 'gauge-fill' + (cls ? ' ' + cls : '');
     }
 
-    setInterval(pollTelemetry, 150);
+    function pollTelemetry() {
+        if (!browserCamActive) {
+            fetch('/api/telemetry').then(r => r.json()).then(renderTelemetryData).catch(() => {});
+        }
+    }
+
+    setInterval(pollTelemetry, 120);
 
     // ===== GALLERY SECTIONS =====
     function toggleSection(header) {
@@ -1286,9 +1355,11 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
                         self.end_headers()
                         self.wfile.write(latest_frame_jpeg)
                         self.wfile.write(b"\r\n")
+                    except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+                        break
                     except Exception:
                         break
-                time.sleep(0.035)
+                time.sleep(0.030)
 
         elif self.path == "/api/telemetry":
             self.send_response(200)
@@ -1355,8 +1426,9 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
-        global global_pipeline, latest_frame_jpeg, latest_telemetry
+        global global_pipeline, latest_frame_jpeg, latest_telemetry, last_client_post_time
         if self.path == "/api/process_frame":
+            last_client_post_time = time.time()
             content_length = int(self.headers.get("Content-Length", 0))
             post_data = self.rfile.read(content_length)
             try:
@@ -1366,7 +1438,7 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
                     with pipeline_lock:
                         hud_frame, telem = global_pipeline.process_frame(frame)
                         latest_telemetry = telem
-                        ret, jpeg = cv2.imencode(".jpg", hud_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+                        ret, jpeg = cv2.imencode(".jpg", hud_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
                         if ret:
                             latest_frame_jpeg = jpeg.tobytes()
                     self.send_response(200)
@@ -1375,10 +1447,15 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(json.dumps(latest_telemetry).encode("utf-8"))
                     return
+            except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+                return
             except Exception as e:
                 logger.error(f"Error processing client frame: {e}")
-            self.send_response(400)
-            self.end_headers()
+            try:
+                self.send_response(400)
+                self.end_headers()
+            except Exception:
+                pass
         else:
             self.send_response(404)
             self.end_headers()
@@ -1392,7 +1469,7 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
 
-def run_web_server(port: int = 8080, camera_idx: int = 0, use_simulation: bool = True):
+def run_web_server(port: int = 8080, camera_idx: int = 0, use_simulation: bool = False):
     """Starts the real-time web server and background stream worker."""
     global global_pipeline, stream_active
 
@@ -1424,8 +1501,8 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Real-Time Drowsiness Detection Web App")
     parser.add_argument("--port", type=int, default=8080, help="Web server port (default: 8080)")
-    parser.add_argument("--camera", type=int, default=0, help="Camera index")
-    parser.add_argument("--live", action="store_true", help="Use live webcam instead of simulation")
+    parser.add_argument("--camera", type=int, default=0, help="Camera index (default: 0)")
+    parser.add_argument("--simulate", action="store_true", help="Force synthetic simulation stream instead of live physical camera")
     args = parser.parse_args()
 
-    run_web_server(port=args.port, camera_idx=args.camera, use_simulation=not args.live)
+    run_web_server(port=args.port, camera_idx=args.camera, use_simulation=args.simulate)

@@ -300,9 +300,27 @@ def run_live_detection(camera_idx: int = 0, video_path: Optional[str] = None, en
     logger.info("=" * 70)
 
     source = video_path if video_path else camera_idx
-    cap = cv2.VideoCapture(source)
+    if video_path:
+        cap = cv2.VideoCapture(video_path)
+    else:
+        cap = None
+        if sys.platform.startswith("win"):
+            try:
+                cap = cv2.VideoCapture(camera_idx, cv2.CAP_DSHOW)
+                if cap.isOpened():
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            except Exception:
+                pass
+        if cap is None or not cap.isOpened():
+            cap = cv2.VideoCapture(camera_idx)
+            if cap.isOpened():
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-    if not cap.isOpened():
+    if not cap or not cap.isOpened():
         logger.error(f"Cannot open video source: {source}")
         return
 
