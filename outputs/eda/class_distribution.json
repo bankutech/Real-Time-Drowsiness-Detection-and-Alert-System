@@ -1,0 +1,15 @@
+{
+    "counts": {
+        "Alert": 1401,
+        "Slightly Drowsy": 1000,
+        "Drowsy": 1000,
+        "Sleep": 600
+    },
+    "percentages": {
+        "Alert": 35.02,
+        "Slightly Drowsy": 24.99,
+        "Drowsy": 24.99,
+        "Sleep": 15.0
+    },
+    "total_samples": 4001
+}
