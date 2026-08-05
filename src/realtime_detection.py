@@ -198,6 +198,7 @@ class DrowsinessDetectorPipeline:
             "low_light": low_light,
             "lighting_quality": "Low (Night/Dark)" if low_light else ("Moderate" if mean_luminance < 85 else "Optimal"),
             "eyewear_detected": eyewear_detected,
+            "landmarks": meta.get("landmarks_summary", {}),
         }
 
         # 2. Build 11-Dimensional Feature Vector matching config.FEATURE_COLUMNS

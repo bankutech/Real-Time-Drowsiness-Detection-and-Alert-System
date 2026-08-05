@@ -1234,27 +1234,170 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         const h = canvas.height;
 
         const lvl = d.alert_level || 0;
-        let bannerColor = 'rgba(16, 185, 129, 0.85)';
-        if (lvl === 1) bannerColor = 'rgba(245, 158, 11, 0.85)';
-        if (lvl === 2) bannerColor = 'rgba(244, 63, 94, 0.90)';
+        let bannerColor = 'rgba(16, 185, 129, 0.88)';
+        let bannerStroke = '#10b981';
+        if (lvl === 1) { bannerColor = 'rgba(245, 158, 11, 0.88)'; bannerStroke = '#f59e0b'; }
+        if (lvl === 2) { bannerColor = 'rgba(244, 63, 94, 0.92)'; bannerStroke = '#f43f5e'; }
 
-        ctx.fillStyle = 'rgba(12, 19, 36, 0.75)';
-        ctx.strokeStyle = 'rgba(56, 80, 135, 0.5)';
+        // 1. Top Header Banner
+        ctx.fillStyle = 'rgba(10, 16, 32, 0.72)';
+        ctx.fillRect(0, 0, w, 44);
+        ctx.strokeStyle = 'rgba(56, 80, 135, 0.35)';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.roundRect(14, 14, 250, 40, 8);
+        ctx.moveTo(0, 44); ctx.lineTo(w, 44); ctx.stroke();
+
+        // Status pill badge in header
+        ctx.fillStyle = bannerColor;
+        ctx.beginPath();
+        ctx.arc(22, 22, 6, 0, 2 * Math.PI);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 13px "Inter", sans-serif';
+        const stText = d.status_text || 'SYSTEM: DRIVER STATUS: ALERT';
+        ctx.fillText(stText.startsWith('SYSTEM:') ? stText : 'SYSTEM: ' + stText, 36, 26);
+
+        ctx.fillStyle = 'rgba(160, 220, 255, 0.9)';
+        ctx.font = '12px "JetBrains Mono", monospace';
+        const fpsTxt = 'FPS: ' + (d.fps ? d.fps.toFixed(1) : '15.0') + ' | Latency: ' + (d.latency_ms ? d.latency_ms.toFixed(0) : '65') + 'ms';
+        ctx.fillText(fpsTxt, w - 240, 26);
+
+        // 2. Left Telemetry Glass Panel
+        const px = 14, py = 54, pw = 245, ph = 230;
+        ctx.fillStyle = 'rgba(10, 16, 30, 0.78)';
+        ctx.strokeStyle = 'rgba(56, 80, 135, 0.55)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(px, py, pw, ph, 8);
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = bannerColor;
-        ctx.beginPath();
-        ctx.arc(28, 34, 6, 0, 2 * Math.PI);
-        ctx.fill();
+        // Panel Title
+        ctx.fillStyle = '#00d4ff';
+        ctx.font = 'bold 11px "Orbitron", sans-serif';
+        ctx.fillText('TELEMETRY METRICS', px + 12, py + 20);
 
-        ctx.fillStyle = '#e8edf5';
-        ctx.font = 'bold 12px "Inter", system-ui, sans-serif';
-        ctx.fillText(d.status_text || 'STATUS: ALERT', 42, 38);
+        // Bar Drawer Helper
+        function drawMeter(label, val, thresh, maxV, yOff, isHigherBad) {
+            ctx.fillStyle = '#e8edf5';
+            ctx.font = '500 11px "JetBrains Mono", monospace';
+            ctx.fillText(label + ': ' + (val !== undefined ? Number(val).toFixed(2) : '0.00'), px + 12, py + yOff);
 
+            const bx = px + 105, by = py + yOff - 9, bw = 120, bh = 8;
+            ctx.fillStyle = 'rgba(40, 50, 75, 0.7)';
+            ctx.fillRect(bx, by, bw, bh);
+
+            const fillRatio = Math.max(0, Math.min(1, val / maxV));
+            const isWarn = isHigherBad ? (val >= thresh) : (val < thresh);
+            ctx.fillStyle = isWarn ? '#f43f5e' : '#10b981';
+            ctx.fillRect(bx, by, bw * fillRatio, bh);
+
+            // Threshold tick
+            const tx = bx + Math.max(0, Math.min(1, thresh / maxV)) * bw;
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(tx, by - 2); ctx.lineTo(tx, by + bh + 2); ctx.stroke();
+        }
+
+        drawMeter('EAR', d.ear || 0.32, d.baseline_ear ? d.baseline_ear * 0.76 : 0.23, 0.45, 44, false);
+        drawMeter('MAR', d.mar || 0.22, 0.55, 0.85, 68, true);
+        drawMeter('PERCLOS', d.perclos || 0.05, 0.20, 1.0, 92, true);
+        drawMeter('FATIGUE', d.fatigue_score || 0.10, 0.70, 1.0, 116, true);
+
+        // Head Pose Angles
+        ctx.fillStyle = 'rgba(180, 200, 230, 0.9)';
+        ctx.font = '10px "JetBrains Mono", monospace';
+        const pTxt = 'POSE: P=' + Math.round(d.pitch || 0) + ' Y=' + Math.round(d.yaw || 0) + ' R=' + Math.round(d.roll || 0);
+        ctx.fillText(pTxt, px + 12, py + 144);
+
+        // Probabilities
+        if (d.probabilities && d.probabilities.length >= 3) {
+            ctx.fillStyle = 'rgba(140, 180, 240, 0.85)';
+            ctx.font = '10px "JetBrains Mono", monospace';
+            const probStr = 'P(A)=' + d.probabilities[0].toFixed(2) + ' P(D)=' + d.probabilities[1].toFixed(2) + ' P(S)=' + d.probabilities[2].toFixed(2);
+            ctx.fillText(probStr, px + 12, py + 168);
+        }
+
+        // State Text
+        const stateColor = lvl === 2 ? '#f43f5e' : (lvl === 1 ? '#f59e0b' : '#10b981');
+        ctx.fillStyle = stateColor;
+        ctx.font = 'bold 12px "Orbitron", sans-serif';
+        ctx.fillText('STATE: ' + (d.state_label || 'Alert'), px + 12, py + 196);
+
+        // 3. Draw Landmark Meshes on User's Face (Eyes, Mouth, Nose Pose)
+        if (d.landmarks) {
+            const lm = d.landmarks;
+            // Draw Eye Polygons
+            function drawPoly(pts, strokeColor) {
+                if (!pts || pts.length === 0) return;
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(pts[0][0] * w, pts[0][1] * h);
+                for (let i = 1; i < pts.length; i++) {
+                    ctx.lineTo(pts[i][0] * w, pts[i][1] * h);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            }
+
+            drawPoly(lm.left_eye, 'rgba(255, 230, 0, 0.85)');
+            drawPoly(lm.right_eye, 'rgba(255, 230, 0, 0.85)');
+            drawPoly(lm.mouth, 'rgba(0, 190, 255, 0.85)');
+
+            // 3D Nose Pose Orientation Indicator
+            if (lm.nose_tip) {
+                const nx = lm.nose_tip[0] * w;
+                const ny = lm.nose_tip[1] * h;
+                const pitch = (d.pitch || 0) * (Math.PI / 180);
+                const yaw = (d.yaw || 0) * (Math.PI / 180);
+                const len = 35;
+
+                // X-Axis (Pitch - Red)
+                ctx.strokeStyle = '#f43f5e';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(nx, ny);
+                ctx.lineTo(nx + len * Math.cos(yaw), ny);
+                ctx.stroke();
+
+                // Y-Axis (Yaw - Green)
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(nx, ny);
+                ctx.lineTo(nx, ny - len * Math.sin(pitch));
+                ctx.stroke();
+
+                // Center Blue Dot
+                ctx.fillStyle = '#00d4ff';
+                ctx.beginPath();
+                ctx.arc(nx, ny, 3, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            // Face Bounding Box Reticle
+            if (lm.face_box) {
+                const bx1 = lm.face_box[0] * w, by1 = lm.face_box[1] * h;
+                const bx2 = lm.face_box[2] * w, by2 = lm.face_box[3] * h;
+                const cLen = 14;
+                ctx.strokeStyle = 'rgba(0, 212, 255, 0.7)';
+                ctx.lineWidth = 2;
+
+                // Top-Left
+                ctx.beginPath(); ctx.moveTo(bx1, by1 + cLen); ctx.lineTo(bx1, by1); ctx.lineTo(bx1 + cLen, by1); ctx.stroke();
+                // Top-Right
+                ctx.beginPath(); ctx.moveTo(bx2 - cLen, by1); ctx.lineTo(bx2, by1); ctx.lineTo(bx2, by1 + cLen); ctx.stroke();
+                // Bottom-Left
+                ctx.beginPath(); ctx.moveTo(bx1, by2 - cLen); ctx.lineTo(bx1, by2); ctx.lineTo(bx1 + cLen, by2); ctx.stroke();
+                // Bottom-Right
+                ctx.beginPath(); ctx.moveTo(bx2 - cLen, by2); ctx.lineTo(bx2, by2); ctx.lineTo(bx2, by2 - cLen); ctx.stroke();
+            }
+        }
+
+        // 4. Alert Border on Warning / Critical
         if (lvl > 0) {
             ctx.lineWidth = lvl === 2 ? 8 : 4;
             ctx.strokeStyle = lvl === 2 ? '#f43f5e' : '#f59e0b';
@@ -1381,6 +1524,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         const pEy = document.getElementById('pill-eyewear');
         if (d.eyewear_detected) { pEy.innerText = '\\uD83D\\uDD76\\uFE0F Eyewear'; pEy.className = 'pill-val warn'; }
         else { pEy.innerText = 'Normal'; pEy.className = 'pill-val ok'; }
+
+        if (browserCamActive) {
+            drawClientHud(document.getElementById('hud-overlay-canvas'), d);
+        }
     }
 
     function setGauge(id, pct, cls) {
@@ -1419,6 +1566,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 </body>
 </html>
 """
+
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, (np.ndarray,)):
+            return obj.tolist()
+        if isinstance(obj, (np.bool_,)):
+            return bool(obj)
+        return super().default(obj)
 
 
 class StreamingHTTPHandler(BaseHTTPRequestHandler):
@@ -1469,7 +1629,7 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            self.wfile.write(json.dumps(latest_telemetry).encode("utf-8"))
+            self.wfile.write(json.dumps(latest_telemetry, cls=NpEncoder).encode("utf-8"))
 
         elif self.path == "/api/calibrate":
             with pipeline_lock:
@@ -1509,7 +1669,7 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
                     rows = df.to_dict(orient="records")
                 except Exception:
                     pass
-            self.wfile.write(json.dumps(rows).encode("utf-8"))
+            self.wfile.write(json.dumps(rows, cls=NpEncoder).encode("utf-8"))
 
         elif self.path.startswith("/outputs/"):
             rel_path = self.path.lstrip("/")
@@ -1551,7 +1711,7 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Access-Control-Allow-Origin", "*")
                     self.end_headers()
-                    self.wfile.write(json.dumps(latest_telemetry).encode("utf-8"))
+                    self.wfile.write(json.dumps(latest_telemetry, cls=NpEncoder).encode("utf-8"))
                     return
             except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
                 return

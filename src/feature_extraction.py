@@ -364,7 +364,31 @@ class FeatureExtractor:
         # 3. Update Temporal Tracker (Blink, Yawn, PERCLOS)
         tracker_res = self.tracker.update(ear=ear, mar=mar, current_time=t)
 
-        # 4. Assemble Standardized Feature Vector
+        # 4. Normalized Landmarks Summary for Client HUD Overlay
+        landmarks_summary = {}
+        if len(landmarks_2d_dict) >= 300:
+            left_eye_norm = [[round(landmarks_2d_dict[i][0] / w, 4), round(landmarks_2d_dict[i][1] / h, 4)] for i in config.LEFT_EYE_FULL if i in landmarks_2d_dict]
+            right_eye_norm = [[round(landmarks_2d_dict[i][0] / w, 4), round(landmarks_2d_dict[i][1] / h, 4)] for i in config.RIGHT_EYE_FULL if i in landmarks_2d_dict]
+            mouth_norm = [[round(landmarks_2d_dict[i][0] / w, 4), round(landmarks_2d_dict[i][1] / h, 4)] for i in config.MOUTH_LANDMARKS if i in landmarks_2d_dict]
+            nose_tip = [round(landmarks_2d_dict.get(1, (w / 2, h / 2))[0] / w, 4), round(landmarks_2d_dict.get(1, (w / 2, h / 2))[1] / h, 4)]
+            
+            all_x = [pt[0] for pt in landmarks_2d_dict.values()]
+            all_y = [pt[1] for pt in landmarks_2d_dict.values()]
+            face_box = [
+                round(max(0.0, (min(all_x) - 10) / w), 4),
+                round(max(0.0, (min(all_y) - 15) / h), 4),
+                round(min(1.0, (max(all_x) + 10) / w), 4),
+                round(min(1.0, (max(all_y) + 10) / h), 4)
+            ]
+            landmarks_summary = {
+                "left_eye": left_eye_norm,
+                "right_eye": right_eye_norm,
+                "mouth": mouth_norm,
+                "nose_tip": nose_tip,
+                "face_box": face_box
+            }
+
+        # 5. Assemble Standardized Feature Vector
         features = {
             "ear": float(ear),
             "mar": float(mar),
@@ -385,6 +409,7 @@ class FeatureExtractor:
             "yawn_count": tracker_res["yawn_count"],
             "is_yawning": tracker_res["is_yawning"],
             "landmarks_count": len(landmarks_2d_dict),
+            "landmarks_summary": landmarks_summary,
             "head_pitch": pitch,
             "head_yaw": yaw,
             "head_roll": roll,
