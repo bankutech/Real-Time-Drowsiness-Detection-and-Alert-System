@@ -372,4 +372,4 @@ All 9 test phases validate numerical precision, zero target leakage, and sub-mil
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
-Developed with ❤️ by **[Sagnik Mitra](https://github.com/bankutech)**.
+Developed with ❤️ by **[Sagnik Mitra](https://github.com/bankutech)****[Aarohi Johari](https://github.com/Aarohi-S05)****[Abhigyan Yadav](https://github.com/AbhigyanYadav47)****[Nayonika M](https://github.com/bankutech)**.
