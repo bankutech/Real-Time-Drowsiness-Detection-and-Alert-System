@@ -119,19 +119,17 @@ class DrowsinessDetectorPipeline:
         if dt > 0:
             self.fps = 0.9 * self.fps + 0.1 * (1.0 / dt) if self.fps > 0 else 1.0 / dt
 
-        # Measure ambient lighting (Mean luminance)
-        gray_sample = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        mean_luminance = float(np.mean(gray_sample))
-        low_light = mean_luminance < 45.0
+        # Fast Ambient Lighting Check (sampled luminance)
+        mean_luminance = float(cv2.mean(frame)[0])
+        low_light = mean_luminance < 35.0
 
-        # Apply CLAHE contrast enhancement in low-light conditions to boost landmark accuracy
+        # Apply fast contrast enhancement only in extreme low light
         proc_frame = frame
         if low_light:
-            lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
-            l_chan, a_chan, b_chan = cv2.split(lab)
-            clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
-            l_enhanced = clahe.apply(l_chan)
-            proc_frame = cv2.cvtColor(cv2.merge([l_enhanced, a_chan, b_chan]), cv2.COLOR_LAB2BGR)
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            enhanced_gray = clahe.apply(gray)
+            proc_frame = cv2.cvtColor(enhanced_gray, cv2.COLOR_GRAY2BGR)
 
         # 1. Feature Extraction (Unit 1)
         feats, annotated_frame, meta = self.feature_extractor.process_frame(
@@ -302,15 +300,15 @@ class DrowsinessDetectorPipeline:
             cv2.rectangle(frame, (0, 0), (w, h), (0, 215, 255), 4)
 
         # 2. Top Header HUD Banner
-        header_color = (40, 40, 40)
+        header_color = np.array([40, 40, 40], dtype=np.uint8)
         if alert_level == 2:
-            header_color = (0, 0, 180)
+            header_color = np.array([0, 0, 180], dtype=np.uint8)
         elif alert_level == 1:
-            header_color = (0, 140, 200)
+            header_color = np.array([0, 140, 200], dtype=np.uint8)
 
-        overlay = frame.copy()
-        cv2.rectangle(overlay, (0, 0), (w, 50), header_color, -1)
-        cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
+        # Fast in-place ROI alpha blend
+        header_roi = frame[0:50, 0:w]
+        frame[0:50, 0:w] = cv2.addWeighted(header_roi, 0.25, np.full_like(header_roi, header_color), 0.75, 0)
 
         # Header Text
         status_text = telemetry.get("status_text", "DRIVER STATUS: ALERT")
@@ -323,9 +321,9 @@ class DrowsinessDetectorPipeline:
         x1, y1 = 15, 65
         x2, y2 = x1 + panel_w, y1 + panel_h
 
-        overlay = frame.copy()
-        cv2.rectangle(overlay, (x1, y1), (x2, y2), (20, 20, 20), -1)
-        cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+        panel_roi = frame[y1:y2, x1:x2]
+        panel_bg = np.full_like(panel_roi, np.array([20, 20, 20], dtype=np.uint8))
+        frame[y1:y2, x1:x2] = cv2.addWeighted(panel_roi, 0.3, panel_bg, 0.7, 0)
         cv2.rectangle(frame, (x1, y1), (x2, y2), (100, 100, 100), 1)
 
         # Panel Header

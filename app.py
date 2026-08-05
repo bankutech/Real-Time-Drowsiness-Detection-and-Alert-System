@@ -39,6 +39,8 @@ logger = setup_logger("AppServer")
 # Global pipeline instance and stream state
 last_client_post_time: float = 0.0
 pipeline_lock = threading.Lock()
+frame_condition = threading.Condition()
+frame_version: int = 0
 global_pipeline: Optional[DrowsinessDetectorPipeline] = None
 latest_frame_jpeg: bytes = b""
 latest_telemetry: Dict[str, Any] = {}
@@ -46,46 +48,82 @@ stream_active = True
 sim_state_idx = 0
 
 
-def open_hardware_camera(camera_idx: int = 0) -> Optional[cv2.VideoCapture]:
-    """Attempts to open physical webcam with DirectShow on Windows for instant low-latency capture."""
-    cap = None
-    if sys.platform.startswith("win"):
-        try:
-            cap = cv2.VideoCapture(camera_idx, cv2.CAP_DSHOW)
-            if cap.isOpened():
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                cap.set(cv2.CAP_PROP_FPS, 30)
-                return cap
-        except Exception as e:
-            logger.debug(f"DirectShow open notice: {e}")
+class AsyncVideoCapture:
+    """Non-blocking asynchronous camera capture thread that eliminates hardware buffer latency."""
 
-    try:
-        cap = cv2.VideoCapture(camera_idx)
-        if cap.isOpened():
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            return cap
-    except Exception as e:
-        logger.debug(f"Default VideoCapture open notice: {e}")
+    def __init__(self, camera_idx: int = 0):
+        self.camera_idx = camera_idx
+        self.cap = None
+        self.running = True
+        self.lock = threading.Lock()
+        self.latest_frame = None
+        self.has_new_frame = False
 
-    return None
+        if sys.platform.startswith("win"):
+            try:
+                self.cap = cv2.VideoCapture(camera_idx, cv2.CAP_DSHOW)
+                if self.cap.isOpened():
+                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                    self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    self.cap.set(cv2.CAP_PROP_FPS, 30)
+            except Exception as e:
+                logger.debug(f"DirectShow init notice: {e}")
+
+        if self.cap is None or not self.cap.isOpened():
+            try:
+                self.cap = cv2.VideoCapture(camera_idx)
+                if self.cap.isOpened():
+                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                    self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            except Exception as e:
+                logger.debug(f"Default VideoCapture notice: {e}")
+
+        if self.cap and self.cap.isOpened():
+            self.thread = threading.Thread(target=self._capture_loop, daemon=True)
+            self.thread.start()
+
+    def is_opened(self) -> bool:
+        return self.cap is not None and self.cap.isOpened()
+
+    def _capture_loop(self):
+        while self.running and self.cap and self.cap.isOpened():
+            ret, frame = self.cap.read()
+            if not ret or frame is None:
+                time.sleep(0.005)
+                continue
+            with self.lock:
+                self.latest_frame = frame
+                self.has_new_frame = True
+
+    def read_latest(self) -> Tuple[bool, Optional[np.ndarray]]:
+        with self.lock:
+            if self.latest_frame is None:
+                return False, None
+            return True, self.latest_frame.copy()
+
+    def release(self):
+        self.running = False
+        if self.cap:
+            try:
+                self.cap.release()
+            except Exception:
+                pass
 
 
 def background_stream_worker(camera_idx: int = 0, use_simulation: bool = False):
-    """Generates continuous live frames and runs ML/HMM/Alert pipeline in background."""
-    global latest_frame_jpeg, latest_telemetry, global_pipeline, stream_active, sim_state_idx, last_client_post_time
+    """Generates continuous low-latency live frames and runs ML/HMM/Alert pipeline."""
+    global latest_frame_jpeg, latest_telemetry, global_pipeline, stream_active, sim_state_idx, last_client_post_time, frame_version
 
-    cap = None
+    async_cam = None
     if not use_simulation:
-        cap = open_hardware_camera(camera_idx)
-        if cap is None:
+        async_cam = AsyncVideoCapture(camera_idx)
+        if not async_cam.is_opened():
             logger.warning(f"Physical webcam {camera_idx} unavailable. Falling back to dynamic simulation stream.")
             use_simulation = True
         else:
-            logger.info(f"Connected to physical webcam device index {camera_idx} successfully.")
+            logger.info(f"Connected to physical webcam device index {camera_idx} via low-latency async grabber.")
     else:
         logger.info("Starting stream worker in synthetic simulation mode.")
 
@@ -104,37 +142,45 @@ def background_stream_worker(camera_idx: int = 0, use_simulation: bool = False):
             continue
 
         frame = None
-        if not use_simulation and cap and cap.isOpened():
-            ret, frame = cap.read()
+        if not use_simulation and async_cam and async_cam.is_opened():
+            ret, frame = async_cam.read_latest()
             if not ret or frame is None:
                 failed_reads += 1
-                if failed_reads > 15:
+                if failed_reads > 60:
                     logger.warning("Physical webcam stream interrupted. Switching to simulation fallback.")
                     use_simulation = True
-                time.sleep(0.03)
+                time.sleep(0.01)
                 continue
-            else:
-                failed_reads = 0
+            failed_reads = 0
         else:
             state = sim_cycle[sim_state_idx % len(sim_cycle)]
-            frame = generate_synthetic_driver_frame(state)
             sim_state_idx += 1
+            frame = generate_synthetic_driver_frame(state)
+            cv2.putText(
+                frame,
+                f"SIMULATED DRIVER SCENARIO: {state.upper()}",
+                (15, 460),
+                cv2.FONT_HERSHEY_DUPLEX,
+                0.45,
+                (0, 255, 255),
+                1,
+            )
 
-        if frame is not None:
+        if frame is not None and global_pipeline is not None:
             with pipeline_lock:
-                if global_pipeline is not None:
-                    hud_frame, telem = global_pipeline.process_frame(frame)
-                    latest_telemetry = telem
-
-                    # Encode to JPEG
-                    ret, jpeg = cv2.imencode(".jpg", hud_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
-                    if ret:
+                hud_frame, telem = global_pipeline.process_frame(frame)
+                latest_telemetry = telem
+                ret, jpeg = cv2.imencode(".jpg", hud_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
+                if ret:
+                    with frame_condition:
                         latest_frame_jpeg = jpeg.tobytes()
+                        frame_version += 1
+                        frame_condition.notify_all()
 
-        time.sleep(0.028)  # ~35 FPS stream rate
+        time.sleep(0.005)
 
-    if cap:
-        cap.release()
+    if async_cam:
+        async_cam.release()
 
 
 HTML_DASHBOARD = """<!DOCTYPE html>
@@ -1344,22 +1390,33 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
         elif self.path == "/video_feed":
             self.send_response(200)
             self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
             self.end_headers()
 
+            client_frame_ver = -1
             while stream_active:
-                if latest_frame_jpeg:
+                with frame_condition:
+                    if frame_version == client_frame_ver:
+                        frame_condition.wait(timeout=0.06)
+                    if frame_version == client_frame_ver:
+                        continue
+                    current_jpeg = latest_frame_jpeg
+                    client_frame_ver = frame_version
+
+                if current_jpeg:
                     try:
                         self.wfile.write(b"--frame\r\n")
                         self.send_header("Content-Type", "image/jpeg")
-                        self.send_header("Content-Length", str(len(latest_frame_jpeg)))
+                        self.send_header("Content-Length", str(len(current_jpeg)))
                         self.end_headers()
-                        self.wfile.write(latest_frame_jpeg)
+                        self.wfile.write(current_jpeg)
                         self.wfile.write(b"\r\n")
                     except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
                         break
                     except Exception:
                         break
-                time.sleep(0.030)
 
         elif self.path == "/api/telemetry":
             self.send_response(200)
@@ -1426,7 +1483,7 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
-        global global_pipeline, latest_frame_jpeg, latest_telemetry, last_client_post_time
+        global global_pipeline, latest_frame_jpeg, latest_telemetry, last_client_post_time, frame_version
         if self.path == "/api/process_frame":
             last_client_post_time = time.time()
             content_length = int(self.headers.get("Content-Length", 0))
@@ -1438,9 +1495,12 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
                     with pipeline_lock:
                         hud_frame, telem = global_pipeline.process_frame(frame)
                         latest_telemetry = telem
-                        ret, jpeg = cv2.imencode(".jpg", hud_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
+                        ret, jpeg = cv2.imencode(".jpg", hud_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
                         if ret:
-                            latest_frame_jpeg = jpeg.tobytes()
+                            with frame_condition:
+                                latest_frame_jpeg = jpeg.tobytes()
+                                frame_version += 1
+                                frame_condition.notify_all()
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Access-Control-Allow-Origin", "*")
