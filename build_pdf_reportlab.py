@@ -4,7 +4,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, HRFlowable
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image, KeepTogether
 )
 from reportlab.pdfgen import canvas
 
@@ -31,7 +31,8 @@ class NumberedCanvas(canvas.Canvas):
     def draw_page_number(self, page_count):
         self.saveState()
         self.setFont("Times-Roman", 10)
-        page_labels = ["iii", "vi", "10", "25"]
+        # Roman numerals for front matter, then Arabic page numbers matching report chapters
+        page_labels = ["iii", "vi", "7", "10", "25", "37", "38", "39"]
         if self._pageNumber <= len(page_labels):
             label = page_labels[self._pageNumber - 1]
             self.drawCentredString(A4[0] / 2.0, 30, label)
@@ -41,10 +42,10 @@ def generate_pdf():
     doc = SimpleDocTemplate(
         str(OUTPUT_PDF),
         pagesize=A4,
-        leftMargin=54,
-        rightMargin=54,
-        topMargin=54,
-        bottomMargin=54,
+        leftMargin=48,
+        rightMargin=48,
+        topMargin=42,
+        bottomMargin=42,
     )
     
     styles = getSampleStyleSheet()
@@ -53,42 +54,31 @@ def generate_pdf():
         'DocTitle',
         parent=styles['Normal'],
         fontName='Times-Bold',
-        fontSize=15,
-        leading=20,
+        fontSize=14,
+        leading=18,
         alignment=1,
-        spaceAfter=18,
+        spaceAfter=14,
         textTransform='uppercase'
     )
     
-    h1_style = ParagraphStyle(
-        'Heading1_Custom',
-        parent=styles['Normal'],
-        fontName='Times-Bold',
-        fontSize=13,
-        leading=17,
-        spaceBefore=14,
-        spaceAfter=8,
-        textTransform='uppercase'
-    )
-
     h2_style = ParagraphStyle(
         'Heading2_Custom',
         parent=styles['Normal'],
         fontName='Times-Bold',
         fontSize=11,
         leading=15,
-        spaceBefore=10,
-        spaceAfter=4,
+        spaceBefore=7,
+        spaceAfter=3,
     )
     
     body_style = ParagraphStyle(
         'Body_Custom',
         parent=styles['Normal'],
         fontName='Times-Roman',
-        fontSize=11,
-        leading=15,
+        fontSize=10,
+        leading=14,
         alignment=4, # Justified
-        spaceAfter=10
+        spaceAfter=7
     )
     
     sig_style = ParagraphStyle(
@@ -103,8 +93,8 @@ def generate_pdf():
         'MathBox',
         parent=styles['Normal'],
         fontName='Courier-Bold',
-        fontSize=10.5,
-        leading=15,
+        fontSize=9.5,
+        leading=13.5,
         alignment=1,
         textColor=colors.HexColor('#0f2b60')
     )
@@ -113,16 +103,27 @@ def generate_pdf():
         'TableCell',
         parent=styles['Normal'],
         fontName='Times-Roman',
-        fontSize=9.5,
-        leading=12,
+        fontSize=8.8,
+        leading=11.5,
     )
 
     cell_bold = ParagraphStyle(
         'TableCellBold',
         parent=styles['Normal'],
         fontName='Times-Bold',
+        fontSize=8.8,
+        leading=11.5,
+    )
+
+    caption_style = ParagraphStyle(
+        'CaptionStyle',
+        parent=styles['Normal'],
+        fontName='Times-Italic',
         fontSize=9.5,
-        leading=12,
+        leading=13,
+        alignment=1,
+        spaceBefore=4,
+        spaceAfter=8
     )
 
     story = []
@@ -131,7 +132,7 @@ def generate_pdf():
     # PAGE 1: ACKNOWLEDGEMENTS (CORRECTED WITH ALL 4 AUTHORS)
     # ==========================================
     story.append(Paragraph("ACKNOWLEDGEMENTS", title_style))
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 4))
     
     story.append(Paragraph(
         "We express our humble gratitude to <b>Dr. C. Muthamizhchelvan</b>, Vice-Chancellor, SRM Institute of Science and Technology, for the facilities extended for the project work and his continued support.",
@@ -166,7 +167,7 @@ def generate_pdf():
         body_style
     ))
     
-    story.append(Spacer(1, 25))
+    story.append(Spacer(1, 20))
     
     sig_data = [
         [
@@ -178,11 +179,11 @@ def generate_pdf():
             Paragraph("<b>SAGNIK MITRA</b><br/>Reg. No: RA2411026010948", ParagraphStyle('R2', parent=sig_style, alignment=2))
         ]
     ]
-    sig_table = Table(sig_data, colWidths=[240, 240])
+    sig_table = Table(sig_data, colWidths=[245, 245])
     sig_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 16),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
         ('RIGHTPADDING', (0, 0), (-1, -1), 0),
     ]))
@@ -194,7 +195,7 @@ def generate_pdf():
     # PAGE 2: TABLE OF CONTENTS (ACCURATE ALIGNMENT)
     # ==========================================
     story.append(Paragraph("TABLE OF CONTENTS", title_style))
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 2))
     
     toc_data = [
         [Paragraph("<b>Section</b>", cell_bold), Paragraph("<b>Page No.</b>", ParagraphStyle('C1', parent=cell_bold, alignment=1))],
@@ -229,21 +230,46 @@ def generate_pdf():
         [Paragraph("<b>APPENDIX B &nbsp; EXPERIMENTAL SCREENSHOTS</b>", cell_bold), Paragraph("34", ParagraphStyle('C', parent=cell_style, alignment=1))],
     ]
     
-    toc_table = Table(toc_data, colWidths=[400, 80])
+    toc_table = Table(toc_data, colWidths=[415, 75])
     toc_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.black),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#666666')),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 1.8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.8),
     ]))
     story.append(toc_table)
     
     story.append(PageBreak())
 
     # ==========================================
-    # PAGE 3: MATHEMATICAL MODELLING (FORMAL FORMULAS)
+    # PAGE 3: CHAPTER 4 - SYSTEM ARCHITECTURE DIAGRAM
+    # ==========================================
+    story.append(Paragraph("CHAPTER 4: PROPOSED SYSTEM ARCHITECTURE", title_style))
+    story.append(Paragraph(
+        "The proposed system integrates computer vision biometrics, supervised machine learning ensembles, temporal Markov dynamic filtering, and a real-time automotive cockpit HUD into a unified multi-tier safety architecture:",
+        body_style
+    ))
+    
+    arch_img_path = str(PROJECT_ROOT / "outputs" / "system_architecture_diagram.png")
+    if os.path.exists(arch_img_path):
+        story.append(Image(arch_img_path, width=490, height=315))
+        story.append(Paragraph("Fig 4.1: End-to-End System Architecture: Layered Computer Vision, Ensemble ML, Temporal HMM, and Cockpit Dashboard", caption_style))
+
+    story.append(Paragraph(
+        "<b>Core Architectural Pipeline:</b><br/>"
+        "1. <b>Video Ingestion &amp; Biometrics:</b> MediaPipe FaceLandmarker tracks 478 3D facial landmarks at 60 FPS to derive EAR, MAR, PERCLOS, and 3D head pose.<br/>"
+        "2. <b>Dynamic Calibration:</b> Records a 100-frame baseline to customize thresholds to driver anatomy.<br/>"
+        "3. <b>Multi-Model Classification &amp; Temporal HMM:</b> Stacking ensemble predictions are filtered through a pure-NumPy HMM to suppress 100% of blink noise.<br/>"
+        "4. <b>Multi-Tier Alerting &amp; Cockpit HUD:</b> Graduated alarms and live REST telemetry APIs enable real-time driver intervention.",
+        body_style
+    ))
+
+    story.append(PageBreak())
+
+    # ==========================================
+    # PAGE 4: MATHEMATICAL MODELLING (FORMAL FORMULAS)
     # ==========================================
     story.append(Paragraph("CHAPTER 5: MATHEMATICAL MODELLING", title_style))
     
@@ -256,15 +282,15 @@ def generate_pdf():
     pnp_box = [
         [Paragraph("s · [ u, v, 1 ]^T = K · ( R_3x3 · [ X_w, Y_w, Z_w ]^T + t_3x1 )<br/>where K = [ [ f_x, 0, c_x ], [ 0, f_y, c_y ], [ 0, 0, 1 ] ]", math_box_style)]
     ]
-    t_pnp = Table(pnp_box, colWidths=[480])
+    t_pnp = Table(pnp_box, colWidths=[490])
     t_pnp.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f4f6fb')),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
-        ('TOPPADDING', (0,0), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ]))
     story.append(t_pnp)
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 3))
 
     story.append(Paragraph("5.2 Dynamic Baseline Driver Calibration", h2_style))
     story.append(Paragraph(
@@ -274,61 +300,61 @@ def generate_pdf():
     calib_box = [
         [Paragraph("EAR_base = (1 / N_calib) · Sum_{t=1}^{N_calib} EAR_t<br/>tau_EAR = EAR_base · 0.75, &nbsp;&nbsp; tau_MAR = 0.65", math_box_style)]
     ]
-    t_calib = Table(calib_box, colWidths=[480])
+    t_calib = Table(calib_box, colWidths=[490])
     t_calib.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f4f6fb')),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
-        ('TOPPADDING', (0,0), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ]))
     story.append(t_calib)
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 3))
 
     story.append(Paragraph("5.3 Ridge Regression — Closed-Form Estimator", h2_style))
     ridge_box = [
         [Paragraph("beta* = argmin_beta { || y - X·beta ||_2^2 + lambda·|| beta ||_2^2 } = ( X^T·X + lambda·I )^-1 · X^T·y", math_box_style)]
     ]
-    t_ridge = Table(ridge_box, colWidths=[480])
+    t_ridge = Table(ridge_box, colWidths=[490])
     t_ridge.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f4f6fb')),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
-        ('TOPPADDING', (0,0), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ]))
     story.append(t_ridge)
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 3))
 
     story.append(Paragraph("5.4 Bayesian Logistic Regression & Shannon Entropy", h2_style))
     bayes_box = [
         [Paragraph("P(y = k | x, w) = exp(w_k^T·x) / Sum_j exp(w_j^T·x)<br/>H(Y | x) = - Sum_{k=1}^K P(y = k | x) · log_2 P(y = k | x)", math_box_style)]
     ]
-    t_bayes = Table(bayes_box, colWidths=[480])
+    t_bayes = Table(bayes_box, colWidths=[490])
     t_bayes.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f4f6fb')),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
-        ('TOPPADDING', (0,0), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ]))
     story.append(t_bayes)
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 3))
 
     story.append(Paragraph("5.5 Hidden Markov Model (HMM) Temporal Smoothing", h2_style))
     hmm_box = [
         [Paragraph("Forward: &nbsp; alpha_t(j) = P(o_t | S_t = j) · Sum_i [ alpha_{t-1}(i) · A_{ij} ]<br/>Viterbi: &nbsp; delta_t(j) = max_i [ delta_{t-1}(i) · A_{ij} ] · P(o_t | S_t = j)", math_box_style)]
     ]
-    t_hmm = Table(hmm_box, colWidths=[480])
+    t_hmm = Table(hmm_box, colWidths=[490])
     t_hmm.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f4f6fb')),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
-        ('TOPPADDING', (0,0), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ]))
     story.append(t_hmm)
 
     story.append(PageBreak())
 
     # ==========================================
-    # PAGE 4: ABLATION STUDY & REST API
+    # PAGE 5: ABLATION STUDY & REST API
     # ==========================================
     story.append(Paragraph("CHAPTER 7: RESULTS & DISCUSSION", title_style))
     story.append(Paragraph("7.5 Ablation Study: Impact of Temporal HMM & Multi-Cue Fusion", h2_style))
@@ -369,24 +395,24 @@ def generate_pdf():
             Paragraph("<b>0.065 ms</b>", ParagraphStyle('C', parent=cell_bold, alignment=1)),
         ],
     ]
-    t_ablation = Table(ablation_data, colWidths=[200, 75, 135, 70])
+    t_ablation = Table(ablation_data, colWidths=[205, 75, 140, 70])
     t_ablation.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
         ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor('#dcfce7')),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#64748b')),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 3.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
     ]))
     story.append(t_ablation)
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 4))
     
     story.append(Paragraph(
         "<b>Key Finding:</b> While raw single-frame EAR classifiers achieve fast inference, they misinterpret normal physiological eye blinks (150–250 ms) as microsleep events (18.2% false alarm rate). The <b>pure-NumPy Hidden Markov Model</b> enforces temporal continuity, eliminating 100% of blink false alarms without GPU dependencies.",
         body_style
     ))
     
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 4))
     story.append(Paragraph("CHAPTER 6: SECTION 6.5 REST TELEMETRY APIS", h2_style))
     
     api_data = [
@@ -400,18 +426,64 @@ def generate_pdf():
         [Paragraph("<code>GET /api/leaderboard</code>", cell_style), Paragraph("JSON", cell_style), Paragraph("Full 8-model performance benchmark ranking and latency comparison.", cell_style)],
         [Paragraph("<code>GET /api/set_model?model=X</code>", cell_style), Paragraph("JSON", cell_style), Paragraph("Hot-swaps the active inference classifier dynamically at runtime.", cell_style)],
     ]
-    t_api = Table(api_data, colWidths=[130, 60, 290])
+    t_api = Table(api_data, colWidths=[130, 60, 300])
     t_api.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#94a3b8')),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
     ]))
     story.append(t_api)
 
+    story.append(PageBreak())
+
+    # ==========================================
+    # PAGE 6: APPENDIX B - SCREENSHOTS B.6 & B.7
+    # ==========================================
+    story.append(Paragraph("APPENDIX B: EXPERIMENTAL SCREENSHOTS", title_style))
+    
+    img_hud_path = str(PROJECT_ROOT / "outputs" / "realtime_hud_preview.png")
+    if os.path.exists(img_hud_path):
+        story.append(Image(img_hud_path, width=440, height=240))
+        story.append(Paragraph("Screenshot B.6: Real-Time Automotive Cockpit HUD Overlay with 60 FPS Telemetry Metrics", caption_style))
+    
+    img_roc_path = str(PROJECT_ROOT / "outputs" / "evaluation" / "multi_model_roc_curves.png")
+    if os.path.exists(img_roc_path):
+        story.append(Image(img_roc_path, width=420, height=240))
+        story.append(Paragraph("Screenshot B.7: Multi-Class One-vs-Rest Receiver Operating Characteristic (ROC) Curves for All 8 Classifiers", caption_style))
+
+    story.append(PageBreak())
+
+    # ==========================================
+    # PAGE 7: APPENDIX B - SCREENSHOT B.8 (CONFUSION MATRICES)
+    # ==========================================
+    story.append(Paragraph("APPENDIX B: EXPERIMENTAL SCREENSHOTS (CONTD.)", title_style))
+    
+    img_cm_path = str(PROJECT_ROOT / "outputs" / "evaluation" / "all_models_confusion_matrices.png")
+    if os.path.exists(img_cm_path):
+        story.append(Image(img_cm_path, width=470, height=480))
+        story.append(Paragraph("Screenshot B.8: Confusion Matrices for All 8 Machine Learning Classifiers on the 801-Sample Test Split", caption_style))
+
+    story.append(PageBreak())
+
+    # ==========================================
+    # PAGE 8: APPENDIX B - SCREENSHOTS B.9 & B.10
+    # ==========================================
+    story.append(Paragraph("APPENDIX B: EXPERIMENTAL SCREENSHOTS (CONTD.)", title_style))
+    
+    img_hmm_path = str(PROJECT_ROOT / "outputs" / "evaluation" / "hmm_state_sequence_decoding.png")
+    if os.path.exists(img_hmm_path):
+        story.append(Image(img_hmm_path, width=440, height=230))
+        story.append(Paragraph("Screenshot B.9: HMM Learned State Transition Matrix and Viterbi Sequential State Decoding", caption_style))
+    
+    img_bench_path = str(PROJECT_ROOT / "outputs" / "evaluation" / "benchmark_comparison.png")
+    if os.path.exists(img_bench_path):
+        story.append(Image(img_bench_path, width=440, height=230))
+        story.append(Paragraph("Screenshot B.10: Multi-Model Benchmark Comparison (Accuracy, Latency, Throughput & Model Size)", caption_style))
+
     doc.build(story, canvasmaker=NumberedCanvas)
-    print(f"ReportLab successfully built PDF at {OUTPUT_PDF} ({OUTPUT_PDF.stat().st_size} bytes)")
+    print(f"ReportLab successfully built 8-page PDF with Architectural Diagram at {OUTPUT_PDF} ({OUTPUT_PDF.stat().st_size} bytes)")
 
 if __name__ == '__main__':
     generate_pdf()
