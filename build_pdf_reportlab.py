@@ -11,7 +11,15 @@ from reportlab.pdfgen import canvas
 PROJECT_ROOT = Path(__file__).parent.resolve()
 OUTPUT_PDF = PROJECT_ROOT / "Corrected_Report_Pages.pdf"
 
-class NumberedCanvas(canvas.Canvas):
+# A4 dimensions: 595.27 x 841.89 points
+# Soft Binding Margins:
+# Left Margin (Gutter): 90 pt (1.25 in / 31.75 mm) - Extra space for spine clipping/binding
+# Right Margin: 54 pt (0.75 in / 19.05 mm)
+# Top Margin: 54 pt (0.75 in / 19.05 mm)
+# Bottom Margin: 54 pt (0.75 in / 19.05 mm)
+# Usable Width: 595.27 - 90 - 54 = 451.27 pt
+
+class UniversityReportCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._saved_page_states = []
@@ -24,43 +32,129 @@ class NumberedCanvas(canvas.Canvas):
         num_pages = len(self._saved_page_states)
         for state in self._saved_page_states:
             self.__dict__.update(state)
-            self.draw_page_number(num_pages)
+            self.draw_page_decorations(num_pages)
             canvas.Canvas.showPage(self)
         canvas.Canvas.save(self)
 
-    def draw_page_number(self, page_count):
+    def draw_page_decorations(self, page_count):
         self.saveState()
+        # Page 1 is Cover Page (no number)
+        if self._pageNumber == 1:
+            self.restoreState()
+            return
+
         self.setFont("Times-Roman", 10)
-        # Custom page labeling for report insertion
-        page_labels = ["iii", "vi", "7", "10", "20", "25", "37", "38", "39", "40"]
+        # Custom university page numbering scheme
+        # Page 1: Cover (none)
+        # Page 2: Bonafide (2)
+        # Page 3: Acknowledgements (3)
+        # Page 4: Table of Contents (6)
+        # Page 5: Chapter 4 Architecture (7)
+        # Page 6: Chapter 5 Mathematical Modelling (10)
+        # Page 7: Chapter 6 Implementation & Validation (20)
+        # Page 8: Chapter 7 Results & Ablation (25)
+        # Page 9: Appendix B Screenshots (34)
+        # Page 10: Appendix B Screenshots (35)
+        # Page 11: Appendix B Screenshots (36)
+        # Page 12: Appendix C Syllabus Matrix (37)
+        page_labels = ["", "2", "3", "6", "7", "10", "20", "25", "34", "35", "36", "37"]
+        
         if self._pageNumber <= len(page_labels):
             label = page_labels[self._pageNumber - 1]
-            self.drawCentredString(A4[0] / 2.0, 28, label)
+            if label:
+                # Center page number relative to printable text width (offset by left gutter)
+                center_x = 90 + (451.27 / 2.0)
+                self.drawCentredString(center_x, 32, label)
+        
         self.restoreState()
 
-def generate_pdf():
+def build_pdf():
     doc = SimpleDocTemplate(
         str(OUTPUT_PDF),
         pagesize=A4,
-        leftMargin=45,
-        rightMargin=45,
-        topMargin=38,
-        bottomMargin=38,
+        leftMargin=90,   # 1.25 in binding gutter margin
+        rightMargin=54,  # 0.75 in margin
+        topMargin=50,    # 0.70 in margin
+        bottomMargin=50, # 0.70 in margin
     )
-    
+
     styles = getSampleStyleSheet()
-    
-    title_style = ParagraphStyle(
-        'DocTitle',
+
+    # Cover Page Styles
+    cover_title = ParagraphStyle(
+        'CoverTitle',
         parent=styles['Normal'],
         fontName='Times-Bold',
-        fontSize=13.5,
+        fontSize=15,
+        leading=19,
+        alignment=1,
+        spaceAfter=12,
+        textTransform='uppercase'
+    )
+
+    cover_subtitle = ParagraphStyle(
+        'CoverSubtitle',
+        parent=styles['Normal'],
+        fontName='Times-Roman',
+        fontSize=12,
+        leading=16,
+        alignment=1,
+        spaceAfter=14
+    )
+
+    cover_heading = ParagraphStyle(
+        'CoverHeading',
+        parent=styles['Normal'],
+        fontName='Times-Bold',
+        fontSize=12.5,
+        leading=16,
+        alignment=1,
+        spaceAfter=10,
+        textTransform='uppercase'
+    )
+
+    cover_text = ParagraphStyle(
+        'CoverText',
+        parent=styles['Normal'],
+        fontName='Times-Italic',
+        fontSize=11,
+        leading=15,
+        alignment=1,
+        spaceAfter=6
+    )
+
+    cover_names = ParagraphStyle(
+        'CoverNames',
+        parent=styles['Normal'],
+        fontName='Times-Bold',
+        fontSize=10.5,
+        leading=14.5,
+        alignment=1,
+        spaceAfter=10
+    )
+
+    cover_dept = ParagraphStyle(
+        'CoverDept',
+        parent=styles['Normal'],
+        fontName='Times-Bold',
+        fontSize=10,
+        leading=13.5,
+        alignment=1,
+        textTransform='uppercase'
+    )
+
+    # General Academic Styles
+    chapter_title = ParagraphStyle(
+        'ChapterTitle',
+        parent=styles['Normal'],
+        fontName='Times-Bold',
+        fontSize=13,
         leading=17,
         alignment=1,
         spaceAfter=12,
         textTransform='uppercase'
     )
-    
+
     h2_style = ParagraphStyle(
         'Heading2_Custom',
         parent=styles['Normal'],
@@ -70,7 +164,7 @@ def generate_pdf():
         spaceBefore=6,
         spaceAfter=3,
     )
-    
+
     body_style = ParagraphStyle(
         'Body_Custom',
         parent=styles['Normal'],
@@ -80,7 +174,7 @@ def generate_pdf():
         alignment=4, # Justified
         spaceAfter=6
     )
-    
+
     sig_style = ParagraphStyle(
         'Sig_Custom',
         parent=styles['Normal'],
@@ -88,13 +182,13 @@ def generate_pdf():
         fontSize=9.5,
         leading=13.5,
     )
-    
+
     math_box_style = ParagraphStyle(
         'MathBox',
         parent=styles['Normal'],
         fontName='Courier-Bold',
-        fontSize=9,
-        leading=13,
+        fontSize=8.8,
+        leading=12.5,
         alignment=1,
         textColor=colors.HexColor('#0f2b60')
     )
@@ -103,37 +197,121 @@ def generate_pdf():
         'TableCell',
         parent=styles['Normal'],
         fontName='Times-Roman',
-        fontSize=8.5,
-        leading=11,
+        fontSize=8.2,
+        leading=10.8,
     )
 
     cell_bold = ParagraphStyle(
         'TableCellBold',
         parent=styles['Normal'],
         fontName='Times-Bold',
-        fontSize=8.5,
-        leading=11,
+        fontSize=8.2,
+        leading=10.8,
     )
 
     caption_style = ParagraphStyle(
         'CaptionStyle',
         parent=styles['Normal'],
         fontName='Times-Italic',
-        fontSize=9,
-        leading=12,
+        fontSize=8.8,
+        leading=11.8,
         alignment=1,
         spaceBefore=3,
-        spaceAfter=7
+        spaceAfter=6
     )
 
     story = []
 
     # ==========================================
-    # PAGE 1: ACKNOWLEDGEMENTS (CORRECTED WITH ALL 4 AUTHORS)
+    # PAGE 1: EXACT FRONT COVER PAGE
     # ==========================================
-    story.append(Paragraph("ACKNOWLEDGEMENTS", title_style))
+    story.append(Spacer(1, 10))
+    story.append(Paragraph("REAL-TIME DROWSINESS DETECTION AND ALERT SYSTEM", cover_title))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph("21CSC305P Machine Learning", cover_subtitle))
+    story.append(Paragraph("<b>A PROJECT REPORT</b>", cover_heading))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph("<i>Submitted by</i>", cover_text))
+    story.append(Paragraph(
+        "AAROHI JOHARI [RA2411026010971]<br/>"
+        "NAYONIKA M [RA2411026010990]<br/>"
+        "ABHIGYAN YADAV [RA2411026010968]<br/>"
+        "SAGNIK MITRA [RA2411026010948]",
+        cover_names
+    ))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph("<i>Under the Guidance of</i>", cover_text))
+    story.append(Paragraph("<b>Ms. Indumathi V</b><br/>(Assistant Professor, Department of CINTEL)", cover_names))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph("<i>in partial fulfillment of the requirements for the degree of</i>", cover_text))
+    story.append(Paragraph(
+        "<b>BACHELOR OF TECHNOLOGY</b><br/>"
+        "in<br/>"
+        "<b>COMPUTER SCIENCE ENGINEERING</b><br/>"
+        "with specialization in Artificial Intelligence and Machine Learning",
+        ParagraphStyle('Prog', parent=cover_names, fontSize=9.5, leading=13)
+    ))
+    story.append(Spacer(1, 6))
+
+    # SRM Logo
+    srm_logo_path = str(PROJECT_ROOT / "outputs" / "srm_logo.jpeg")
+    if os.path.exists(srm_logo_path):
+        story.append(Image(srm_logo_path, width=170, height=48))
+        story.append(Spacer(1, 6))
+
+    story.append(Paragraph(
+        "DEPARTMENT OF COMPUTER INTELLIGENCE<br/>"
+        "SCHOOL OF COMPUTING<br/>"
+        "COLLEGE OF ENGINEERING AND TECHNOLOGY<br/>"
+        "SRM INSTITUTE OF SCIENCE AND TECHNOLOGY<br/>"
+        "KATTANKULATHUR - 603 203<br/>"
+        "MAY 2026",
+        cover_dept
+    ))
+
+    story.append(PageBreak())
+
+    # ==========================================
+    # PAGE 2: BONAFIDE CERTIFICATE
+    # ==========================================
+    story.append(Paragraph("SRM INSTITUTE OF SCIENCE AND TECHNOLOGY", cover_dept))
+    story.append(Paragraph("KATTANKULATHUR - 603 203", ParagraphStyle('Loc', parent=cover_dept, fontSize=9, spaceAfter=14)))
+    story.append(Paragraph("<b>BONAFIDE CERTIFICATE</b>", chapter_title))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph(
+        "Certified that 21CSC305P - Project report titled <b>\"REAL-TIME DROWSINESS DETECTION AND ALERT SYSTEM\"</b> is the bonafide work of <b>AAROHI JOHARI [RA2411026010971]</b>, <b>NAYONIKA M [RA2411026010990]</b>, <b>ABHIGYAN YADAV [RA2411026010968]</b>, and <b>SAGNIK MITRA [RA2411026010948]</b>, who carried out the project work under my supervision.",
+        body_style
+    ))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(
+        "Certified further, that to the best of my knowledge the work reported herein does not form any other project report or dissertation on the basis of which a degree or award was conferred on an earlier occasion on this or any other candidate.",
+        body_style
+    ))
+    story.append(Spacer(1, 140))
+
+    cert_sig = [
+        [
+            Paragraph("<b>SIGNATURE</b><br/><br/><b>Ms. Indumathi V</b><br/>Project Guide<br/>Department of Computational Intelligence<br/>SRMIST, Kattankulathur", sig_style),
+            Paragraph("<b>SIGNATURE</b><br/><br/><b>Dr. R. Annie Uthra</b><br/>Head of the Department<br/>Department of Computational Intelligence<br/>SRMIST, Kattankulathur", ParagraphStyle('CR', parent=sig_style, alignment=2))
+        ]
+    ]
+    t_cert = Table(cert_sig, colWidths=[225, 225])
+    t_cert.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(t_cert)
+
+    story.append(PageBreak())
+
+    # ==========================================
+    # PAGE 3: ACKNOWLEDGEMENTS (CORRECTED WITH ALL 4 AUTHORS)
+    # ==========================================
+    story.append(Paragraph("ACKNOWLEDGEMENTS", chapter_title))
     story.append(Spacer(1, 2))
-    
+
     story.append(Paragraph(
         "We express our humble gratitude to <b>Dr. C. Muthamizhchelvan</b>, Vice-Chancellor, SRM Institute of Science and Technology, for the facilities extended for the project work and his continued support.",
         body_style
@@ -166,9 +344,9 @@ def generate_pdf():
         "We sincerely thank all the staff members of the Department of Computational Intelligence, School of Computing, SRM Institute of Science and Technology, for their help during this project. Finally, we would like to thank our parents, family members, and friends for their unconditional love, constant support and encouragement.",
         body_style
     ))
-    
+
     story.append(Spacer(1, 15))
-    
+
     sig_data = [
         [
             Paragraph("<b>AAROHI JOHARI</b><br/>Reg. No: RA2411026010971", sig_style),
@@ -179,7 +357,7 @@ def generate_pdf():
             Paragraph("<b>SAGNIK MITRA</b><br/>Reg. No: RA2411026010948", ParagraphStyle('R2', parent=sig_style, alignment=2))
         ]
     ]
-    sig_table = Table(sig_data, colWidths=[250, 250])
+    sig_table = Table(sig_data, colWidths=[225, 225])
     sig_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
@@ -188,15 +366,15 @@ def generate_pdf():
         ('RIGHTPADDING', (0, 0), (-1, -1), 0),
     ]))
     story.append(sig_table)
-    
+
     story.append(PageBreak())
 
     # ==========================================
-    # PAGE 2: TABLE OF CONTENTS (ACCURATE ALIGNMENT)
+    # PAGE 4: TABLE OF CONTENTS (ACCURATE ALIGNMENT)
     # ==========================================
-    story.append(Paragraph("TABLE OF CONTENTS", title_style))
+    story.append(Paragraph("TABLE OF CONTENTS", chapter_title))
     story.append(Spacer(1, 2))
-    
+
     toc_data = [
         [Paragraph("<b>Section</b>", cell_bold), Paragraph("<b>Page No.</b>", ParagraphStyle('C1', parent=cell_bold, alignment=1))],
         [Paragraph("ABSTRACT", cell_style), Paragraph("iv", ParagraphStyle('C', parent=cell_style, alignment=1))],
@@ -229,8 +407,8 @@ def generate_pdf():
         [Paragraph("<b>APPENDIX A &nbsp; CODE SNIPPETS</b>", cell_bold), Paragraph("32", ParagraphStyle('C', parent=cell_style, alignment=1))],
         [Paragraph("<b>APPENDIX B &nbsp; EXPERIMENTAL SCREENSHOTS</b>", cell_bold), Paragraph("34", ParagraphStyle('C', parent=cell_style, alignment=1))],
     ]
-    
-    toc_table = Table(toc_data, colWidths=[420, 80])
+
+    toc_table = Table(toc_data, colWidths=[375, 75])
     toc_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.black),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -240,21 +418,21 @@ def generate_pdf():
         ('BOTTOMPADDING', (0, 0), (-1, -1), 1.6),
     ]))
     story.append(toc_table)
-    
+
     story.append(PageBreak())
 
     # ==========================================
-    # PAGE 3: CHAPTER 4 - SYSTEM ARCHITECTURE DIAGRAM
+    # PAGE 5: CHAPTER 4 - SYSTEM ARCHITECTURE DIAGRAM
     # ==========================================
-    story.append(Paragraph("CHAPTER 4: PROPOSED SYSTEM ARCHITECTURE", title_style))
+    story.append(Paragraph("CHAPTER 4: PROPOSED SYSTEM ARCHITECTURE", chapter_title))
     story.append(Paragraph(
         "The proposed system integrates computer vision biometrics, supervised machine learning ensembles, temporal Markov dynamic filtering, and a real-time automotive cockpit HUD into a unified multi-tier safety architecture:",
         body_style
     ))
-    
+
     arch_img_path = str(PROJECT_ROOT / "outputs" / "system_architecture_diagram.png")
     if os.path.exists(arch_img_path):
-        story.append(Image(arch_img_path, width=495, height=310))
+        story.append(Image(arch_img_path, width=450, height=285))
         story.append(Paragraph("Fig 4.1: End-to-End System Architecture: Layered Computer Vision, Ensemble ML, Temporal HMM, and Cockpit Dashboard", caption_style))
 
     story.append(Paragraph(
@@ -269,20 +447,20 @@ def generate_pdf():
     story.append(PageBreak())
 
     # ==========================================
-    # PAGE 4: CHAPTER 5 - MATHEMATICAL MODELLING
+    # PAGE 6: CHAPTER 5 - MATHEMATICAL MODELLING
     # ==========================================
-    story.append(Paragraph("CHAPTER 5: MATHEMATICAL MODELLING", title_style))
-    
+    story.append(Paragraph("CHAPTER 5: MATHEMATICAL MODELLING", chapter_title))
+
     story.append(Paragraph("5.1 3D Head Pose Projective Geometry (solvePnP)", h2_style))
     story.append(Paragraph(
         "Using 6 canonical 3D facial landmarks (nose tip, chin, eye corners, mouth corners), the 3D head orientation relative to the camera optical center is derived via the Pinhole Camera Model and Levenberg-Marquardt optimization:",
         body_style
     ))
-    
+
     pnp_box = [
         [Paragraph("s · [ u, v, 1 ]^T = K · ( R_3x3 · [ X_w, Y_w, Z_w ]^T + t_3x1 )<br/>where K = [ [ f_x, 0, c_x ], [ 0, f_y, c_y ], [ 0, 0, 1 ] ]", math_box_style)]
     ]
-    t_pnp = Table(pnp_box, colWidths=[495])
+    t_pnp = Table(pnp_box, colWidths=[450])
     t_pnp.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f4f6fb')),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
@@ -300,7 +478,7 @@ def generate_pdf():
     calib_box = [
         [Paragraph("EAR_base = (1 / N_calib) · Sum_{t=1}^{N_calib} EAR_t<br/>tau_EAR = EAR_base · 0.75, &nbsp;&nbsp; tau_MAR = 0.65", math_box_style)]
     ]
-    t_calib = Table(calib_box, colWidths=[495])
+    t_calib = Table(calib_box, colWidths=[450])
     t_calib.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f4f6fb')),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
@@ -314,7 +492,7 @@ def generate_pdf():
     ridge_box = [
         [Paragraph("beta* = argmin_beta { || y - X·beta ||_2^2 + lambda·|| beta ||_2^2 } = ( X^T·X + lambda·I )^-1 · X^T·y", math_box_style)]
     ]
-    t_ridge = Table(ridge_box, colWidths=[495])
+    t_ridge = Table(ridge_box, colWidths=[450])
     t_ridge.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f4f6fb')),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
@@ -328,7 +506,7 @@ def generate_pdf():
     bayes_box = [
         [Paragraph("P(y = k | x, w) = exp(w_k^T·x) / Sum_j exp(w_j^T·x)<br/>H(Y | x) = - Sum_{k=1}^K P(y = k | x) · log_2 P(y = k | x)", math_box_style)]
     ]
-    t_bayes = Table(bayes_box, colWidths=[495])
+    t_bayes = Table(bayes_box, colWidths=[450])
     t_bayes.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f4f6fb')),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
@@ -342,7 +520,7 @@ def generate_pdf():
     hmm_box = [
         [Paragraph("Forward: &nbsp; alpha_t(j) = P(o_t | S_t = j) · Sum_i [ alpha_{t-1}(i) · A_{ij} ]<br/>Viterbi: &nbsp; delta_t(j) = max_i [ delta_{t-1}(i) · A_{ij} ] · P(o_t | S_t = j)", math_box_style)]
     ]
-    t_hmm = Table(hmm_box, colWidths=[495])
+    t_hmm = Table(hmm_box, colWidths=[450])
     t_hmm.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f4f6fb')),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
@@ -354,10 +532,10 @@ def generate_pdf():
     story.append(PageBreak())
 
     # ==========================================
-    # PAGE 5: CHAPTER 6 - 9-STAGE TEST VALIDATION MATRIX & AUDIO SYNTHESIZER
+    # PAGE 7: CHAPTER 6 - 9-STAGE TEST VALIDATION MATRIX & AUDIO SYNTHESIZER
     # ==========================================
-    story.append(Paragraph("CHAPTER 6: IMPLEMENTATION & VERIFICATION", title_style))
-    
+    story.append(Paragraph("CHAPTER 6: IMPLEMENTATION & VERIFICATION", chapter_title))
+
     story.append(Paragraph("6.3 Automated 9-Stage Verification & Unit Test Suite Matrix", h2_style))
     story.append(Paragraph(
         "To guarantee high reliability, regression safety, and algorithmic correctness, the system incorporates an automated 9-stage test suite covering all modules across 177.98 seconds of total test execution:",
@@ -426,7 +604,7 @@ def generate_pdf():
             Paragraph("PASSED", ParagraphStyle('P', parent=cell_bold, alignment=1, textColor=colors.HexColor('#15803d'))),
         ],
     ]
-    t_test = Table(test_data, colWidths=[55, 115, 265, 60])
+    t_test = Table(test_data, colWidths=[50, 110, 235, 55])
     t_test.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#94a3b8')),
@@ -446,15 +624,15 @@ def generate_pdf():
     story.append(PageBreak())
 
     # ==========================================
-    # PAGE 6: CHAPTER 7 - ABLATION STUDY & SECTION 6.5 REST API
+    # PAGE 8: CHAPTER 7 - ABLATION STUDY & SECTION 6.5 REST API
     # ==========================================
-    story.append(Paragraph("CHAPTER 7: RESULTS & DISCUSSION", title_style))
+    story.append(Paragraph("CHAPTER 7: RESULTS & DISCUSSION", chapter_title))
     story.append(Paragraph("7.5 Ablation Study: Impact of Temporal HMM & Multi-Cue Fusion", h2_style))
     story.append(Paragraph(
         "To evaluate the individual contributions of multi-cue feature fusion, personalized baseline calibration, and temporal HMM sequence filtering, an ablation experiment was performed on continuous driving sequences:",
         body_style
     ))
-    
+
     ablation_data = [
         [
             Paragraph("<b>Pipeline Configuration</b>", cell_bold),
@@ -487,7 +665,7 @@ def generate_pdf():
             Paragraph("<b>0.065 ms</b>", ParagraphStyle('C', parent=cell_bold, alignment=1)),
         ],
     ]
-    t_ablation = Table(ablation_data, colWidths=[205, 75, 140, 75])
+    t_ablation = Table(ablation_data, colWidths=[185, 70, 130, 65])
     t_ablation.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
         ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor('#dcfce7')),
@@ -498,15 +676,15 @@ def generate_pdf():
     ]))
     story.append(t_ablation)
     story.append(Spacer(1, 4))
-    
+
     story.append(Paragraph(
         "<b>Key Finding:</b> While raw single-frame EAR classifiers achieve fast inference, they misinterpret normal physiological eye blinks (150–250 ms) as microsleep events (18.2% false alarm rate). The <b>pure-NumPy Hidden Markov Model</b> enforces temporal continuity, eliminating 100% of blink false alarms without GPU dependencies.",
         body_style
     ))
-    
+
     story.append(Spacer(1, 4))
     story.append(Paragraph("CHAPTER 6: SECTION 6.5 REST TELEMETRY APIS", h2_style))
-    
+
     api_data = [
         [Paragraph("<b>Endpoint</b>", cell_bold), Paragraph("<b>Type</b>", cell_bold), Paragraph("<b>Description</b>", cell_bold)],
         [Paragraph("<code>GET /</code>", cell_style), Paragraph("HTML5", cell_style), Paragraph("Interactive cockpit HUD with real-time biometric dials.", cell_style)],
@@ -518,7 +696,7 @@ def generate_pdf():
         [Paragraph("<code>GET /api/leaderboard</code>", cell_style), Paragraph("JSON", cell_style), Paragraph("Full 8-model performance benchmark ranking and latency comparison.", cell_style)],
         [Paragraph("<code>GET /api/set_model?model=X</code>", cell_style), Paragraph("JSON", cell_style), Paragraph("Hot-swaps the active inference classifier dynamically at runtime.", cell_style)],
     ]
-    t_api = Table(api_data, colWidths=[130, 60, 305])
+    t_api = Table(api_data, colWidths=[120, 55, 275])
     t_api.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#94a3b8')),
@@ -531,60 +709,60 @@ def generate_pdf():
     story.append(PageBreak())
 
     # ==========================================
-    # PAGE 7: APPENDIX B - SCREENSHOTS B.6 & B.7
+    # PAGE 9: APPENDIX B - SCREENSHOTS B.6 & B.7
     # ==========================================
-    story.append(Paragraph("APPENDIX B: EXPERIMENTAL SCREENSHOTS", title_style))
-    
+    story.append(Paragraph("APPENDIX B: EXPERIMENTAL SCREENSHOTS", chapter_title))
+
     img_hud_path = str(PROJECT_ROOT / "outputs" / "realtime_hud_preview.png")
     if os.path.exists(img_hud_path):
-        story.append(Image(img_hud_path, width=440, height=240))
+        story.append(Image(img_hud_path, width=420, height=230))
         story.append(Paragraph("Screenshot B.6: Real-Time Automotive Cockpit HUD Overlay with 60 FPS Telemetry Metrics", caption_style))
-    
+
     img_roc_path = str(PROJECT_ROOT / "outputs" / "evaluation" / "multi_model_roc_curves.png")
     if os.path.exists(img_roc_path):
-        story.append(Image(img_roc_path, width=420, height=240))
+        story.append(Image(img_roc_path, width=400, height=230))
         story.append(Paragraph("Screenshot B.7: Multi-Class One-vs-Rest Receiver Operating Characteristic (ROC) Curves for All 8 Classifiers", caption_style))
 
     story.append(PageBreak())
 
     # ==========================================
-    # PAGE 8: APPENDIX B - SCREENSHOT B.8 (CONFUSION MATRICES)
+    # PAGE 10: APPENDIX B - SCREENSHOT B.8 (CONFUSION MATRICES)
     # ==========================================
-    story.append(Paragraph("APPENDIX B: EXPERIMENTAL SCREENSHOTS (CONTD.)", title_style))
-    
+    story.append(Paragraph("APPENDIX B: EXPERIMENTAL SCREENSHOTS (CONTD.)", chapter_title))
+
     img_cm_path = str(PROJECT_ROOT / "outputs" / "evaluation" / "all_models_confusion_matrices.png")
     if os.path.exists(img_cm_path):
-        story.append(Image(img_cm_path, width=470, height=480))
+        story.append(Image(img_cm_path, width=440, height=450))
         story.append(Paragraph("Screenshot B.8: Confusion Matrices for All 8 Machine Learning Classifiers on the 801-Sample Test Split", caption_style))
 
     story.append(PageBreak())
 
     # ==========================================
-    # PAGE 9: APPENDIX B - SCREENSHOTS B.9 & B.10
+    # PAGE 11: APPENDIX B - SCREENSHOTS B.9 & B.10
     # ==========================================
-    story.append(Paragraph("APPENDIX B: EXPERIMENTAL SCREENSHOTS (CONTD.)", title_style))
-    
+    story.append(Paragraph("APPENDIX B: EXPERIMENTAL SCREENSHOTS (CONTD.)", chapter_title))
+
     img_hmm_path = str(PROJECT_ROOT / "outputs" / "evaluation" / "hmm_state_sequence_decoding.png")
     if os.path.exists(img_hmm_path):
-        story.append(Image(img_hmm_path, width=440, height=230))
+        story.append(Image(img_hmm_path, width=420, height=220))
         story.append(Paragraph("Screenshot B.9: HMM Learned State Transition Matrix and Viterbi Sequential State Decoding", caption_style))
-    
+
     img_bench_path = str(PROJECT_ROOT / "outputs" / "evaluation" / "benchmark_comparison.png")
     if os.path.exists(img_bench_path):
-        story.append(Image(img_bench_path, width=440, height=230))
+        story.append(Image(img_bench_path, width=420, height=220))
         story.append(Paragraph("Screenshot B.10: Multi-Model Benchmark Comparison (Accuracy, Latency, Throughput & Model Size)", caption_style))
 
     story.append(PageBreak())
 
     # ==========================================
-    # PAGE 10: SYLLABUS MAPPING & MODULE AUDIT
+    # PAGE 12: SYLLABUS MAPPING & MODULE AUDIT
     # ==========================================
-    story.append(Paragraph("APPENDIX C: SYLLABUS COVERAGE & MODULE AUDIT", title_style))
+    story.append(Paragraph("APPENDIX C: SYLLABUS COVERAGE & MODULE AUDIT", chapter_title))
     story.append(Paragraph(
         "To verify rigorous academic compliance with the 21CSC305P Machine Learning curriculum, the following matrix cross-references each syllabus unit with its corresponding mathematical module and empirical benchmark in the codebase:",
         body_style
     ))
-    
+
     syllabus_data = [
         [
             Paragraph("<b>Unit &amp; Topic</b>", cell_bold),
@@ -629,7 +807,7 @@ def generate_pdf():
             Paragraph("Latency = 0.001ms<br/>FPS = 15,300+", cell_style),
         ],
     ]
-    t_syl = Table(syllabus_data, colWidths=[105, 100, 205, 85])
+    t_syl = Table(syllabus_data, colWidths=[95, 90, 190, 75])
     t_syl.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#94a3b8')),
@@ -639,8 +817,8 @@ def generate_pdf():
     ]))
     story.append(t_syl)
 
-    doc.build(story, canvasmaker=NumberedCanvas)
-    print(f"ReportLab successfully built 10-page master PDF at {OUTPUT_PDF} ({OUTPUT_PDF.stat().st_size} bytes)")
+    doc.build(story, canvasmaker=UniversityReportCanvas)
+    print(f"ReportLab successfully built 12-page soft-bound PDF at {OUTPUT_PDF} ({OUTPUT_PDF.stat().st_size} bytes)")
 
 if __name__ == '__main__':
-    generate_pdf()
+    build_pdf()
