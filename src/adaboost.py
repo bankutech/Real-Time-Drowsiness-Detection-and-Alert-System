@@ -81,6 +81,28 @@ class DrowsinessAdaBoost:
         logger.info(f"AdaBoost Evaluation: Accuracy={acc:.4f}, Macro-F1={macro_f1:.4f}")
         return self.metrics
 
+    def plot_estimator_weights(self, output_dir: Optional[Path] = None) -> Path:
+        """Visualizes AdaBoost estimator weights (alpha_m) across boosting iterations."""
+        out_dir = output_dir or config.EVAL_OUTPUT_DIR
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        fig, ax = plt.subplots(figsize=(9, 4.5))
+        weights = getattr(self.model, "estimator_weights_", np.ones(self.n_estimators))
+        iters = np.arange(1, len(weights) + 1)
+
+        ax.bar(iters, weights, color="#8e44ad", alpha=0.85, edgecolor="none")
+        ax.set_title(f"AdaBoost Estimator Importance Weights (alpha_m) across {len(weights)} Iterations", fontsize=12, fontweight="bold")
+        ax.set_xlabel("Weak Estimator Index (m)", fontsize=10)
+        ax.set_ylabel("Estimator Weight (alpha)", fontsize=10)
+        ax.grid(True, linestyle="--", alpha=0.5)
+
+        plt.tight_layout()
+        save_path = out_dir / "adaboost_estimator_weights.png"
+        plt.savefig(save_path, dpi=300)
+        plt.close()
+        logger.info(f"Saved AdaBoost estimator weights plot to {save_path}")
+        return save_path
+
     def plot_stagewise_error(
         self,
         X_train: np.ndarray,

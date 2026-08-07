@@ -1,6 +1,6 @@
 [
   {
-    "timestamp": "2026-08-05T13:31:11.527387",
+    "timestamp": "2026-08-07T16:37:30.681697",
     "frame_idx": 0,
     "predicted_state": 0,
     "state_label": "Alert",
@@ -15,12 +15,12 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528057",
+    "timestamp": "2026-08-07T16:37:30.682426",
     "frame_idx": 10,
     "predicted_state": 1,
     "state_label": "Slightly Drowsy",
     "alert_level": 1,
-    "status_text": "WARNING: DROWSINESS DETECTED",
+    "status_text": "WARNING: DROWSINESS TRENDING",
     "fatigue_score": 0.55,
     "ear": 0.22,
     "mar": 0.55,
@@ -30,12 +30,12 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528111",
+    "timestamp": "2026-08-07T16:37:30.682481",
     "frame_idx": 11,
     "predicted_state": 1,
     "state_label": "Slightly Drowsy",
     "alert_level": 1,
-    "status_text": "WARNING: DROWSINESS DETECTED",
+    "status_text": "WARNING: DROWSINESS TRENDING",
     "fatigue_score": 0.55,
     "ear": 0.22,
     "mar": 0.55,
@@ -45,12 +45,12 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528161",
+    "timestamp": "2026-08-07T16:37:30.682533",
     "frame_idx": 12,
     "predicted_state": 1,
     "state_label": "Slightly Drowsy",
     "alert_level": 1,
-    "status_text": "WARNING: DROWSINESS DETECTED",
+    "status_text": "WARNING: DROWSINESS TRENDING",
     "fatigue_score": 0.55,
     "ear": 0.22,
     "mar": 0.55,
@@ -60,12 +60,12 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528210",
+    "timestamp": "2026-08-07T16:37:30.682584",
     "frame_idx": 13,
     "predicted_state": 1,
     "state_label": "Slightly Drowsy",
     "alert_level": 1,
-    "status_text": "WARNING: DROWSINESS DETECTED",
+    "status_text": "WARNING: DROWSINESS TRENDING",
     "fatigue_score": 0.55,
     "ear": 0.22,
     "mar": 0.55,
@@ -75,12 +75,12 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528259",
+    "timestamp": "2026-08-07T16:37:30.682635",
     "frame_idx": 14,
     "predicted_state": 1,
     "state_label": "Slightly Drowsy",
     "alert_level": 1,
-    "status_text": "WARNING: DROWSINESS DETECTED",
+    "status_text": "WARNING: DROWSINESS TRENDING",
     "fatigue_score": 0.55,
     "ear": 0.22,
     "mar": 0.55,
@@ -90,12 +90,12 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528308",
+    "timestamp": "2026-08-07T16:37:30.682686",
     "frame_idx": 15,
     "predicted_state": 1,
     "state_label": "Slightly Drowsy",
     "alert_level": 1,
-    "status_text": "WARNING: DROWSINESS DETECTED",
+    "status_text": "WARNING: DROWSINESS TRENDING",
     "fatigue_score": 0.55,
     "ear": 0.22,
     "mar": 0.55,
@@ -105,12 +105,12 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528357",
+    "timestamp": "2026-08-07T16:37:30.682736",
     "frame_idx": 16,
     "predicted_state": 1,
     "state_label": "Slightly Drowsy",
     "alert_level": 1,
-    "status_text": "WARNING: DROWSINESS DETECTED",
+    "status_text": "WARNING: DROWSINESS TRENDING",
     "fatigue_score": 0.55,
     "ear": 0.22,
     "mar": 0.55,
@@ -120,12 +120,12 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528414",
+    "timestamp": "2026-08-07T16:37:30.682787",
     "frame_idx": 17,
     "predicted_state": 1,
     "state_label": "Slightly Drowsy",
     "alert_level": 1,
-    "status_text": "WARNING: DROWSINESS DETECTED",
+    "status_text": "WARNING: DROWSINESS TRENDING",
     "fatigue_score": 0.55,
     "ear": 0.22,
     "mar": 0.55,
@@ -135,7 +135,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528479",
+    "timestamp": "2026-08-07T16:37:30.682842",
     "frame_idx": 18,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -150,7 +150,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528532",
+    "timestamp": "2026-08-07T16:37:30.682896",
     "frame_idx": 19,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -165,7 +165,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528580",
+    "timestamp": "2026-08-07T16:37:30.682947",
     "frame_idx": 20,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -180,7 +180,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528629",
+    "timestamp": "2026-08-07T16:37:30.682997",
     "frame_idx": 21,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -195,7 +195,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528677",
+    "timestamp": "2026-08-07T16:37:30.683057",
     "frame_idx": 22,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -210,7 +210,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528725",
+    "timestamp": "2026-08-07T16:37:30.683108",
     "frame_idx": 23,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -225,7 +225,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528774",
+    "timestamp": "2026-08-07T16:37:30.683159",
     "frame_idx": 24,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -240,7 +240,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528822",
+    "timestamp": "2026-08-07T16:37:30.683236",
     "frame_idx": 25,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -255,7 +255,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528871",
+    "timestamp": "2026-08-07T16:37:30.683291",
     "frame_idx": 26,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -270,7 +270,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.528949",
+    "timestamp": "2026-08-07T16:37:30.683342",
     "frame_idx": 27,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -285,7 +285,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.529007",
+    "timestamp": "2026-08-07T16:37:30.683391",
     "frame_idx": 28,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -300,7 +300,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.529057",
+    "timestamp": "2026-08-07T16:37:30.683441",
     "frame_idx": 29,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -315,7 +315,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.529106",
+    "timestamp": "2026-08-07T16:37:30.683523",
     "frame_idx": 30,
     "predicted_state": 2,
     "state_label": "Drowsy",
@@ -330,7 +330,7 @@
     "roll": 0.0
   },
   {
-    "timestamp": "2026-08-05T13:31:11.529153",
+    "timestamp": "2026-08-07T16:37:30.683573",
     "frame_idx": 31,
     "predicted_state": 2,
     "state_label": "Drowsy",

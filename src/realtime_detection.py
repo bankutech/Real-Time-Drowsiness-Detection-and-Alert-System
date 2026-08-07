@@ -16,7 +16,6 @@ from typing import Dict, Any, Optional, Tuple, List, Union
 
 import cv2
 import numpy as np
-import pandas as pd
 
 from src import config
 from src.utils import setup_logger, load_model
@@ -56,10 +55,36 @@ class DrowsinessDetectorPipeline:
         self.bayes_model = load_model("bayesian_logistic.joblib")
         self.rf_model = load_model("random_forest.joblib")
         self.ensemble_model = load_model("ensemble_stacking.joblib")
-        self.pca_model = load_model("pca.joblib")
-        self.kmeans_model = load_model("kmeans.joblib")
 
-        # 3. Load HMM Engine
+        # 3. Load Hardware-Accelerated ONNX INT8 Engines for Sub-millisecond Execution
+        self.onnx_ensemble = None
+        self.onnx_rf = None
+        self.onnx_bayes = None
+        try:
+            from src.onnx_exporter import ONNXInferenceEngine
+            onnx_dir = config.MODELS_DIR / "onnx"
+            p_ens = onnx_dir / "ensemble_stacking_int8.onnx"
+            if not p_ens.exists():
+                p_ens = onnx_dir / "ensemble_stacking.onnx"
+            if p_ens.exists():
+                self.onnx_ensemble = ONNXInferenceEngine(p_ens)
+
+            p_rf = onnx_dir / "random_forest_int8.onnx"
+            if not p_rf.exists():
+                p_rf = onnx_dir / "random_forest.onnx"
+            if p_rf.exists():
+                self.onnx_rf = ONNXInferenceEngine(p_rf)
+
+            p_bayes = onnx_dir / "bayesian_logistic_int8.onnx"
+            if not p_bayes.exists():
+                p_bayes = onnx_dir / "bayesian_logistic.onnx"
+            if p_bayes.exists():
+                self.onnx_bayes = ONNXInferenceEngine(p_bayes)
+            logger.info("ONNX hardware acceleration engines initialized successfully.")
+        except Exception as e:
+            logger.warning(f"Could not initialize ONNX engines ({e}). Using Scikit-Learn fallback.")
+
+        # 4. Load HMM Engine
         try:
             self.hmm = DrowsinessHMM.load()
             logger.info("Loaded trained HMM for temporal filtering.")
@@ -68,14 +93,13 @@ class DrowsinessDetectorPipeline:
             self.hmm = None
         self.prev_hmm_belief: Optional[np.ndarray] = None
 
-        # 4. Initialize Alert Manager
+        # 5. Initialize Alert Manager
         self.alert_manager = AlertManager(enable_audio=enable_audio, log_dir=self.output_dir)
 
         # State and Performance Tracking
         self.frame_count = 0
         self.fps = 0.0
         self._prev_time = time.perf_counter()
-        self.recent_latencies: List[float] = []
 
         # Customer Critical Enhancements:
         # 1. Dynamic Baseline Calibration
@@ -103,7 +127,7 @@ class DrowsinessDetectorPipeline:
         self.calibration_buffer_mar = []
         logger.info("Driver baseline calibration initiated...")
 
-    def process_frame(self, frame: np.ndarray) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def process_frame(self, frame: np.ndarray, render_hud: bool = True) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Executes full inference cycle on a single video frame with
         ambient lighting enhancement, personalized calibration, and speech disambiguation.
@@ -119,21 +143,9 @@ class DrowsinessDetectorPipeline:
         if dt > 0:
             self.fps = 0.9 * self.fps + 0.1 * (1.0 / dt) if self.fps > 0 else 1.0 / dt
 
-        # Fast Ambient Lighting Check (sampled luminance)
-        mean_luminance = float(cv2.mean(frame)[0])
-        low_light = mean_luminance < 35.0
-
-        # Apply fast contrast enhancement only in extreme low light
-        proc_frame = frame
-        if low_light:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            enhanced_gray = clahe.apply(gray)
-            proc_frame = cv2.cvtColor(enhanced_gray, cv2.COLOR_GRAY2BGR)
-
-        # 1. Feature Extraction (Unit 1)
+        # 1. Feature Extraction (Unit 1 with CLAHE and 13 Biometrics)
         feats, annotated_frame, meta = self.feature_extractor.process_frame(
-            proc_frame, current_time=curr_time, draw_overlays=True
+            frame, current_time=curr_time, draw_overlays=render_hud, apply_clahe=True
         )
 
         face_detected = meta.get("landmarks_count", 0) >= 250
@@ -143,6 +155,10 @@ class DrowsinessDetectorPipeline:
         pitch = float(feats.get("head_pitch", 0.0))
         yaw = float(feats.get("head_yaw", 0.0))
         roll = float(feats.get("head_roll", 0.0))
+        ear_vel = float(feats.get("ear_velocity", 0.0))
+        ear_acc = float(feats.get("ear_acceleration", 0.0))
+        clahe_applied = meta.get("clahe_applied", False)
+        luminance = meta.get("luminance", 100.0)
 
         # Dynamic Calibration Routine
         if self.calibrating and face_detected and ear > 0.15:
@@ -170,9 +186,10 @@ class DrowsinessDetectorPipeline:
         else:
             self.speech_counter = max(0, self.speech_counter - 1)
 
-        # Eyewear / Sunglass Occlusion Fallback:
-        # If face is detected but eye EAR is abnormally low (< 0.10) while user is upright, flag possible eyewear
-        eyewear_detected = face_detected and (ear < 0.10) and (abs(pitch) < 15.0) and (abs(yaw) < 20.0)
+        # Eyewear / Glasses Analysis:
+        eyewear_detected = meta.get("eyewear_detected", False)
+        eyewear_label = meta.get("eyewear_label", "None")
+        head_pose_dir = meta.get("head_pose_direction", "Facing Ahead (Attentive)")
 
         # Telemetry structure
         telemetry: Dict[str, Any] = {
@@ -182,9 +199,12 @@ class DrowsinessDetectorPipeline:
             "ear": ear,
             "mar": mar,
             "perclos": perclos,
+            "ear_velocity": ear_vel,
+            "ear_acceleration": ear_acc,
             "pitch": pitch,
             "yaw": yaw,
             "roll": roll,
+            "head_pose_direction": head_pose_dir,
             "fatigue_score": 0.0,
             "predicted_state": 0,
             "state_label": config.CLASS_LABELS[0],
@@ -195,13 +215,16 @@ class DrowsinessDetectorPipeline:
             "calibration_progress": int((len(self.calibration_buffer_ear) / max(1, self.calibration_frames_needed)) * 100) if self.calibrating else 100,
             "baseline_ear": round(self.baseline_ear, 3),
             "is_speaking": is_speaking,
-            "low_light": low_light,
-            "lighting_quality": "Low (Night/Dark)" if low_light else ("Moderate" if mean_luminance < 85 else "Optimal"),
+            "low_light": clahe_applied or (luminance < config.LOW_LIGHT_LUMINANCE_THRESHOLD),
+            "clahe_applied": clahe_applied,
+            "luminance": luminance,
+            "lighting_quality": "Enhanced (CLAHE Active)" if clahe_applied else ("Optimal" if luminance >= 85 else "Moderate"),
             "eyewear_detected": eyewear_detected,
+            "eyewear_label": eyewear_label,
             "landmarks": meta.get("landmarks_summary", {}),
         }
 
-        # 2. Build 11-Dimensional Feature Vector matching config.FEATURE_COLUMNS
+        # 2. Build 13-Dimensional Feature Vector matching config.FEATURE_COLUMNS
         feature_vector = np.array([[feats.get(col, 0.0) for col in config.FEATURE_COLUMNS]], dtype=np.float64)
 
         # Normalize features with trained scaler
@@ -217,16 +240,34 @@ class DrowsinessDetectorPipeline:
 
         telemetry["fatigue_score"] = fatigue_pred
 
-        # Primary Multi-Class Classification (Unit 5)
-        if self.primary_model_type == "ensemble" and self.ensemble_model:
-            pred_state = int(self.ensemble_model.predict(feature_vector_scaled)[0])
-            probas = self.ensemble_model.predict_proba(feature_vector_scaled)[0]
-        elif self.rf_model:
-            pred_state = int(self.rf_model.predict(feature_vector_scaled)[0])
-            probas = self.rf_model.predict_proba(feature_vector_scaled)[0]
-        elif self.bayes_model:
-            pred_state = int(self.bayes_model.predict(feature_vector_scaled)[0])
-            probas = self.bayes_model.predict_proba(feature_vector_scaled)[0]
+        # Primary Multi-Class Classification (Unit 5) with ONNX Hardware Acceleration
+        if self.primary_model_type == "ensemble":
+            if self.onnx_ensemble:
+                pred_state = int(self.onnx_ensemble.predict(feature_vector_scaled)[0])
+                probas = self.onnx_ensemble.predict_proba(feature_vector_scaled)[0]
+            elif self.ensemble_model:
+                pred_state = int(self.ensemble_model.predict(feature_vector_scaled)[0])
+                probas = self.ensemble_model.predict_proba(feature_vector_scaled)[0]
+            else:
+                pred_state, probas = 0, [1.0, 0.0, 0.0, 0.0]
+        elif self.primary_model_type == "rf":
+            if self.onnx_rf:
+                pred_state = int(self.onnx_rf.predict(feature_vector_scaled)[0])
+                probas = self.onnx_rf.predict_proba(feature_vector_scaled)[0]
+            elif self.rf_model:
+                pred_state = int(self.rf_model.predict(feature_vector_scaled)[0])
+                probas = self.rf_model.predict_proba(feature_vector_scaled)[0]
+            else:
+                pred_state, probas = 0, [1.0, 0.0, 0.0, 0.0]
+        elif self.primary_model_type == "bayes":
+            if self.onnx_bayes:
+                pred_state = int(self.onnx_bayes.predict(feature_vector_scaled)[0])
+                probas = self.onnx_bayes.predict_proba(feature_vector_scaled)[0]
+            elif self.bayes_model:
+                pred_state = int(self.bayes_model.predict(feature_vector_scaled)[0])
+                probas = self.bayes_model.predict_proba(feature_vector_scaled)[0]
+            else:
+                pred_state, probas = 0, [1.0, 0.0, 0.0, 0.0]
         else:
             pred_state = 0
             probas = [1.0, 0.0, 0.0, 0.0]
@@ -281,103 +322,52 @@ class DrowsinessDetectorPipeline:
         latency_ms = (time.perf_counter() - t_start) * 1000.0
         telemetry["latency_ms"] = latency_ms
 
-        # 6. Render Cockpit HUD Overlay
-        annotated_frame = self._render_hud(annotated_frame, telemetry)
+        # 6. Render Minimalist Cockpit HUD Overlay (Clean & Unobtrusive)
+        if render_hud:
+            annotated_frame = self._render_hud(annotated_frame, telemetry)
 
         return annotated_frame, telemetry
 
     def _render_hud(self, frame: np.ndarray, telemetry: Dict[str, Any]) -> np.ndarray:
         """
-        Renders rich telemetry meters, status banners, and multi-class gauges onto the frame.
+        Renders a sleek, uncluttered cockpit HUD overlay that keeps the driver's face unobstructed.
         """
         h, w, _ = frame.shape
-        alert_level = telemetry["alert_level"]
+        alert_level = telemetry.get("alert_level", 0)
 
-        # 1. Dynamic Alert Border
-        if alert_level == 2:  # Flashing critical border
-            if (self.frame_count // 5) % 2 == 0:
-                cv2.rectangle(frame, (0, 0), (w, h), (0, 0, 255), 8)
-        elif alert_level == 1:
-            cv2.rectangle(frame, (0, 0), (w, h), (0, 215, 255), 4)
+        # 1. Tiered Alert Perimeter Glow (Non-obtrusive)
+        if alert_level == 2:  # Confirmed Sustained Critical Emergency
+            if (self.frame_count // 4) % 2 == 0:
+                cv2.rectangle(frame, (0, 0), (w, h), (0, 0, 240), 6)
+        elif alert_level == 1:  # Soft Amber Warning
+            cv2.rectangle(frame, (0, 0), (w, h), (0, 180, 255), 3)
 
-        # 2. Top Header HUD Banner
-        header_color = np.array([40, 40, 40], dtype=np.uint8)
+        # 2. Sleek Top Status Pill Banner (Semi-transparent)
+        header_h = 38
+        overlay = frame.copy()
+        bg_color = (25, 25, 25)
         if alert_level == 2:
-            header_color = np.array([0, 0, 180], dtype=np.uint8)
+            bg_color = (0, 0, 150)
         elif alert_level == 1:
-            header_color = np.array([0, 140, 200], dtype=np.uint8)
+            bg_color = (0, 110, 180)
 
-        # Fast in-place ROI alpha blend
-        header_roi = frame[0:50, 0:w]
-        frame[0:50, 0:w] = cv2.addWeighted(header_roi, 0.25, np.full_like(header_roi, header_color), 0.75, 0)
+        cv2.rectangle(overlay, (0, 0), (w, header_h), bg_color, -1)
+        cv2.addWeighted(overlay, 0.70, frame, 0.30, 0, frame)
 
-        # Header Text
+        # Status Dot & Text
+        status_color = (0, 255, 120) if alert_level == 0 else ((0, 215, 255) if alert_level == 1 else (50, 50, 255))
+        cv2.circle(frame, (18, 19), 6, status_color, -1, lineType=cv2.LINE_AA)
+        
         status_text = telemetry.get("status_text", "DRIVER STATUS: ALERT")
-        cv2.putText(frame, f"SYSTEM: {status_text}", (18, 33), cv2.FONT_HERSHEY_DUPLEX, 0.75, (255, 255, 255), 2)
-        cv2.putText(frame, f"FPS: {telemetry['fps']} | Latency: {telemetry['latency_ms']:.1f}ms", (w - 320, 33), cv2.FONT_HERSHEY_DUPLEX, 0.6, (200, 255, 200), 1)
+        cv2.putText(frame, status_text, (32, 25), cv2.FONT_HERSHEY_DUPLEX, 0.55, (255, 255, 255), 1, lineType=cv2.LINE_AA)
 
-        # 3. Side Telemetry Glass Panel
-        panel_w = 260
-        panel_h = 240
-        x1, y1 = 15, 65
-        x2, y2 = x1 + panel_w, y1 + panel_h
-
-        panel_roi = frame[y1:y2, x1:x2]
-        panel_bg = np.full_like(panel_roi, np.array([20, 20, 20], dtype=np.uint8))
-        frame[y1:y2, x1:x2] = cv2.addWeighted(panel_roi, 0.3, panel_bg, 0.7, 0)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (100, 100, 100), 1)
-
-        # Panel Header
-        cv2.putText(frame, "TELEMETRY METRICS", (x1 + 10, y1 + 22), cv2.FONT_HERSHEY_DUPLEX, 0.5, (0, 255, 255), 1)
-
-        # Telemetry Gauge Helper
-        def draw_bar(y_offset, label, value, threshold, max_val=1.0, color_ok=(0, 255, 0)):
-            cv2.putText(frame, f"{label}: {value:.2f}", (x1 + 10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 1)
-            bar_x = x1 + 120
-            bar_w = 120
-            bar_h = 10
-            bar_y = y_offset - 9
-            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_w, bar_y + bar_h), (60, 60, 60), -1)
-            fill_w = int(np.clip(value / max_val, 0.0, 1.0) * bar_w)
-            color = color_ok if value >= threshold else (0, 0, 255)
-            if label in ["MAR", "PERCLOS", "FATIGUE"]:
-                color = (0, 0, 255) if value >= threshold else color_ok
-            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + fill_w, bar_y + bar_h), color, -1)
-            # Threshold line
-            th_x = bar_x + int(np.clip(threshold / max_val, 0.0, 1.0) * bar_w)
-            cv2.line(frame, (th_x, bar_y - 2), (th_x, bar_y + bar_h + 2), (0, 255, 255), 1)
-
-        draw_bar(y1 + 48, "EAR", telemetry["ear"], getattr(config, "EAR_DROWSY_THRESH", 0.23), max_val=0.45)
-        draw_bar(y1 + 76, "MAR", telemetry["mar"], getattr(config, "MAR_YAWN_THRESH", 0.60), max_val=0.85)
-        draw_bar(y1 + 104, "PERCLOS", telemetry["perclos"], getattr(config, "PERCLOS_CLOSURE_THRESHOLD", 0.20), max_val=1.0)
-        draw_bar(y1 + 132, "FATIGUE", telemetry["fatigue_score"], getattr(config, "CRITICAL_FATIGUE_THRESHOLD", 0.70), max_val=1.0)
-
-        # Head Pose Angles Display
-        cv2.putText(
-            frame,
-            f"POSE: P={telemetry['pitch']:.0f} Y={telemetry['yaw']:.0f} R={telemetry['roll']:.0f}",
-            (x1 + 10, y1 + 165),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.42,
-            (200, 200, 200),
-            1,
-        )
-
-        # Multi-Class Probability Mini-Bars
-        if "probabilities" in telemetry:
-            probs = telemetry["probabilities"]
-            p_text = f"P(A)={probs[0]:.2f} P(D)={probs[1]:.2f} P(S)={probs[2]:.2f}"
-            cv2.putText(frame, p_text, (x1 + 10, y1 + 195), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (180, 220, 255), 1)
-
-        cv2.putText(
-            frame,
-            f"STATE: {telemetry['state_label']}",
-            (x1 + 10, y1 + 225),
-            cv2.FONT_HERSHEY_DUPLEX,
-            0.5,
-            (0, 255, 0) if telemetry["predicted_state"] == 0 else ((0, 215, 255) if telemetry["predicted_state"] == 1 else (0, 0, 255)),
-            1,
-        )
+        # Right-side Context Badges (Orientation & Eyewear)
+        pose_dir = telemetry.get("head_pose_direction", "Facing Ahead")
+        eyewear_lbl = " [Glasses]" if telemetry.get("eyewear_detected", False) else ""
+        badge_text = f"{pose_dir}{eyewear_lbl}"
+        
+        (tw, _), _ = cv2.getTextSize(badge_text, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
+        cv2.putText(frame, badge_text, (w - tw - 15, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 240, 255), 1, lineType=cv2.LINE_AA)
 
         return frame
 

@@ -81,3 +81,7 @@ videos/*.mp4
 videos/*.avi
 videos/*.mov
 !videos/.gitkeep
+
+# PDF Reports & Generated Documents
+*.pdf
+outputs/*.pdf

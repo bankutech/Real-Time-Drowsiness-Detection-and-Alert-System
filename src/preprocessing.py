@@ -58,6 +58,8 @@ def generate_synthetic_ddd_dataset(
             "head_yaw": (0.0, 3.0),
             "head_roll": (0.0, 2.0),
             "perclos": (0.04, 0.02),
+            "ear_velocity": (0.0, 0.15),
+            "ear_acceleration": (0.0, 0.45),
             "base_fatigue": (12.0, 4.0),
         },
         "Slightly Drowsy": {
@@ -72,6 +74,8 @@ def generate_synthetic_ddd_dataset(
             "head_yaw": (4.0, 4.0),
             "head_roll": (3.0, 2.5),
             "perclos": (0.18, 0.04),
+            "ear_velocity": (-0.05, 0.10),
+            "ear_acceleration": (-0.02, 0.25),
             "base_fatigue": (38.0, 6.0),
         },
         "Drowsy": {
@@ -86,6 +90,8 @@ def generate_synthetic_ddd_dataset(
             "head_yaw": (10.0, 6.0),
             "head_roll": (8.0, 4.0),
             "perclos": (0.44, 0.07),
+            "ear_velocity": (-0.12, 0.08),
+            "ear_acceleration": (-0.08, 0.15),
             "base_fatigue": (68.0, 7.0),
         },
         "Sleep": {
@@ -100,6 +106,8 @@ def generate_synthetic_ddd_dataset(
             "head_yaw": (14.0, 7.0),
             "head_roll": (15.0, 5.0),
             "perclos": (0.85, 0.08),
+            "ear_velocity": (0.0, 0.02),
+            "ear_acceleration": (0.0, 0.05),
             "base_fatigue": (92.0, 4.0),
         },
     }
@@ -121,6 +129,8 @@ def generate_synthetic_ddd_dataset(
             roll = float(np.clip(np.random.normal(prof["head_roll"][0], prof["head_roll"][1]), -35.0, 35.0))
             face_angle = float(np.hypot(pitch, np.hypot(yaw, roll)))
             perclos = float(np.clip(np.random.normal(prof["perclos"][0], prof["perclos"][1]), 0.0, 1.0))
+            ear_vel = float(np.clip(np.random.normal(prof["ear_velocity"][0], prof["ear_velocity"][1]), -1.5, 1.5))
+            ear_acc = float(np.clip(np.random.normal(prof["ear_acceleration"][0], prof["ear_acceleration"][1]), -3.0, 3.0))
 
             # Fatigue Score (0-100)
             fatigue = float(
@@ -149,6 +159,8 @@ def generate_synthetic_ddd_dataset(
                 "head_yaw": yaw,
                 "head_roll": roll,
                 "perclos": perclos,
+                "ear_velocity": ear_vel,
+                "ear_acceleration": ear_acc,
                 "fatigue_score": fatigue,
                 "state": state_label,
             })
@@ -198,14 +210,20 @@ class DataPreprocessor:
         self.regression_target = config.REGRESSION_TARGET
         self.imputation_values: Dict[str, float] = {}
 
-    def load_or_generate_dataset(self, file_path: Optional[Path] = None) -> pd.DataFrame:
-        """Loads dataset from disk or automatically generates it if not present."""
+    def load_or_generate_dataset(self, file_path: Optional[Path] = None, force_regenerate: bool = False) -> pd.DataFrame:
+        """Loads dataset from disk or automatically generates it if not present or schema outdated."""
         target_path = file_path or config.DATASET_CSV_PATH
-        if not target_path.exists():
-            logger.warning(f"Dataset file {target_path} not found. Generating realistic DDD dataset...")
+        if force_regenerate or not target_path.exists():
+            logger.warning(f"Generating realistic DDD dataset at {target_path}...")
             return generate_synthetic_ddd_dataset(output_path=target_path)
         logger.info(f"Loading raw dataset from {target_path}...")
-        return pd.read_csv(target_path)
+        df = pd.read_csv(target_path)
+        # Check if all required feature columns exist
+        missing_cols = [c for c in self.feature_columns if c not in df.columns]
+        if missing_cols:
+            logger.warning(f"Dataset missing updated features {missing_cols}. Regenerating dataset...")
+            return generate_synthetic_ddd_dataset(output_path=target_path)
+        return df
 
     def clean_dataset(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """

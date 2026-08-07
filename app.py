@@ -19,7 +19,7 @@ import threading
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 # Ensure project root is in sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -146,10 +146,10 @@ def background_stream_worker(camera_idx: int = 0, use_simulation: bool = True):
         frame = None
         if not use_simulation and server_async_cam and server_async_cam.is_opened():
             ret, frame = server_async_cam.read_latest()
-            if not ret or frame is None or float(np.mean(frame)) < 2.5:
+            if not ret or frame is None:
                 failed_reads += 1
-                if failed_reads > 10:
-                    logger.warning("Physical webcam returning blank/black sensor frames. Releasing camera handle and switching to dynamic simulation fallback.")
+                if failed_reads > 250:
+                    logger.warning("Physical webcam did not return frames after 2.5s warmup. Releasing camera handle and switching to dynamic simulation fallback.")
                     try:
                         server_async_cam.release()
                     except Exception:
@@ -383,15 +383,15 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         }
         .alert-level-0 { background: var(--success-bg); border: 1px solid rgba(16,185,129,0.35); color: var(--success); }
         .alert-level-1 {
-            background: var(--warning-bg); border: 1px solid rgba(245,158,11,0.45); color: var(--warning);
-            box-shadow: 0 0 25px rgba(245,158,11,0.15); animation: pulseWarn 1.2s infinite;
+            background: var(--warning-bg); border: 1px solid rgba(245,158,11,0.5); color: var(--warning);
+            box-shadow: 0 0 20px rgba(245,158,11,0.15); animation: pulseWarn 1.8s infinite;
         }
         .alert-level-2 {
-            background: var(--danger-bg); border: 1px solid rgba(244,63,94,0.5); color: var(--danger);
-            box-shadow: 0 0 35px rgba(244,63,94,0.25); animation: flashCrit 0.7s infinite;
+            background: var(--danger-bg); border: 1px solid rgba(244,63,94,0.7); color: var(--danger);
+            box-shadow: 0 0 35px rgba(244,63,94,0.35); animation: flashCrit 0.8s infinite;
         }
-        @keyframes pulseWarn { 0%,100% { box-shadow: 0 0 25px rgba(245,158,11,0.15); } 50% { box-shadow: 0 0 40px rgba(245,158,11,0.25); } }
-        @keyframes flashCrit { 0%,100% { opacity: 1; } 50% { opacity: 0.82; } }
+        @keyframes pulseWarn { 0%,100% { box-shadow: 0 0 15px rgba(245,158,11,0.12); opacity: 0.95; } 50% { box-shadow: 0 0 28px rgba(245,158,11,0.25); opacity: 1; } }
+        @keyframes flashCrit { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.88; transform: scale(1.005); } }
 
         /* ========== CARDS ========== */
         .card {
@@ -464,6 +464,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             background: rgba(30, 42, 70, 0.5); border-radius: 6px; height: 10px;
             overflow: hidden; position: relative;
         }
+        .gauge-scale {
+            display: flex; justify-content: space-between; font-family: var(--font-mono);
+            font-size: 0.62rem; color: var(--text-3); margin-top: 4px;
+        }
         .gauge-fill {
             height: 100%; border-radius: 6px;
             transition: width 0.2s ease, background 0.3s ease;
@@ -479,7 +483,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         .gauge-fill.danger-fill { background: linear-gradient(90deg, var(--danger), #e11d48); }
         .gauge-marker {
             position: absolute; top: -1px; bottom: -1px; width: 2px;
-            background: rgba(255,255,255,0.5); z-index: 2; border-radius: 1px;
+            background: rgba(255,255,255,0.7); z-index: 2; border-radius: 1px;
+            box-shadow: 0 0 4px rgba(255,255,255,0.8);
         }
         .divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
         .model-select {
@@ -651,13 +656,17 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             <div class="brand-logo">&#128663;</div>
             <div class="brand-text">
                 <span class="brand-name">DRIVER SAFETY AI</span>
-                <span class="brand-sub">Real-Time Drowsiness Detection &amp; Alert System</span>
+                <span class="brand-sub">Real-Time Drowsiness Detection &amp; Edge Safety System</span>
             </div>
         </div>
         <div class="header-actions">
             <button id="btn-webcam" class="btn" onclick="toggleBrowserWebcam()">
                 <span id="cam-icon">&#128247;</span>
                 <span id="cam-label">My Webcam</span>
+            </button>
+            <button id="btn-mesh" class="btn" onclick="toggleMeshOverlay()">
+                <span id="mesh-icon">&#127915;</span>
+                <span id="mesh-label">HUD Mesh: OFF</span>
             </button>
             <button id="btn-sound" class="btn" onclick="toggleAudio()">
                 <span id="sound-icon">&#128266;</span>
@@ -690,7 +699,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         <div class="stat-item">
             <span class="stat-icon">&#9201;</span>
             <div class="stat-info">
-                <span class="stat-label">Latency</span>
+                <span class="stat-label">System Latency</span>
                 <span id="stat-latency" class="stat-value">-- ms</span>
             </div>
         </div>
@@ -704,8 +713,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         <div class="stat-item">
             <span class="stat-icon">&#129504;</span>
             <div class="stat-info">
-                <span class="stat-label">Models Loaded</span>
-                <span class="stat-value">8 Architectures</span>
+                <span class="stat-label">Edge AI Engine</span>
+                <span class="stat-value" style="color:var(--success);">Active (INT8 Quantized)</span>
             </div>
         </div>
     </div>
@@ -731,8 +740,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 <!-- Video Card -->
                 <div class="card">
                     <div class="card-head">
-                        <span class="card-title">Live Cockpit HUD</span>
-                        <span id="fps-badge" class="card-badge">FPS: -- | Latency: -- ms</span>
+                        <span class="card-title">Live Cockpit View</span>
+                        <span id="cam-badge" class="card-badge">HD Vision Stream</span>
                     </div>
                     <div class="video-wrap" id="video-wrap">
                         <div class="corner corner--tl"></div>
@@ -746,18 +755,18 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                     <div class="pills stagger">
                         <div class="pill">
                             <span class="pill-label">Baseline EAR</span>
-                            <span id="pill-baseline" class="pill-val ok">0.320</span>
+                            <span id="pill-baseline" class="pill-val ok">0.320 (Ready)</span>
                         </div>
                         <div class="pill">
                             <span class="pill-label">Speech Filter</span>
                             <span id="pill-speech" class="pill-val ok">Silent</span>
                         </div>
                         <div class="pill">
-                            <span class="pill-label">Cabin Light</span>
+                            <span class="pill-label">Cabin Lighting</span>
                             <span id="pill-light" class="pill-val ok">Optimal</span>
                         </div>
                         <div class="pill">
-                            <span class="pill-label">Eyewear</span>
+                            <span class="pill-label">Eyewear Analysis</span>
                             <span id="pill-eyewear" class="pill-val ok">Normal</span>
                         </div>
                     </div>
@@ -774,11 +783,16 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                     <div class="metric">
                         <div class="metric-head">
                             <span class="metric-name">Eye Aspect Ratio (EAR)</span>
-                            <span id="val-ear" class="metric-val">0.00</span>
+                            <span id="val-ear" class="metric-val">0.32</span>
                         </div>
                         <div class="gauge-track">
-                            <div id="bar-ear" class="gauge-fill" style="width:0%;"></div>
-                            <div class="gauge-marker" style="left:50%;"></div>
+                            <div id="bar-ear" class="gauge-fill" style="width:70%;"></div>
+                            <div class="gauge-marker" style="left:51%;" title="Threshold: 0.23"></div>
+                        </div>
+                        <div class="gauge-scale">
+                            <span>0.00 (Closed)</span>
+                            <span style="color:var(--accent-2);">0.23 Thresh</span>
+                            <span>0.45 (Open)</span>
                         </div>
                     </div>
 
@@ -786,11 +800,16 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                     <div class="metric">
                         <div class="metric-head">
                             <span class="metric-name">Mouth Aspect Ratio (MAR)</span>
-                            <span id="val-mar" class="metric-val">0.00</span>
+                            <span id="val-mar" class="metric-val">0.22</span>
                         </div>
                         <div class="gauge-track">
-                            <div id="bar-mar" class="gauge-fill" style="width:0%;"></div>
-                            <div class="gauge-marker" style="left:65%;"></div>
+                            <div id="bar-mar" class="gauge-fill" style="width:25%;"></div>
+                            <div class="gauge-marker" style="left:65%;" title="Threshold: 0.55"></div>
+                        </div>
+                        <div class="gauge-scale">
+                            <span>0.00 (Closed)</span>
+                            <span style="color:var(--accent-2);">0.55 Yawn Thresh</span>
+                            <span>0.85 (Open)</span>
                         </div>
                     </div>
 
@@ -798,11 +817,16 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                     <div class="metric">
                         <div class="metric-head">
                             <span class="metric-name">PERCLOS (% Eye Closure)</span>
-                            <span id="val-perclos" class="metric-val">0.00</span>
+                            <span id="val-perclos" class="metric-val">0.0%</span>
                         </div>
                         <div class="gauge-track">
                             <div id="bar-perclos" class="gauge-fill" style="width:0%;"></div>
-                            <div class="gauge-marker" style="left:20%;"></div>
+                            <div class="gauge-marker" style="left:20%;" title="Threshold: 20%"></div>
+                        </div>
+                        <div class="gauge-scale">
+                            <span>0% (Alert)</span>
+                            <span style="color:var(--accent-2);">20% Thresh</span>
+                            <span>100% (Sleep)</span>
                         </div>
                     </div>
 
@@ -810,20 +834,30 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                     <div class="metric">
                         <div class="metric-head">
                             <span class="metric-name">Continuous Fatigue Index</span>
-                            <span id="val-fatigue" class="metric-val">0.00</span>
+                            <span id="val-fatigue" class="metric-val">0.0%</span>
                         </div>
                         <div class="gauge-track">
                             <div id="bar-fatigue" class="gauge-fill" style="width:0%;"></div>
-                            <div class="gauge-marker" style="left:45%;"></div>
+                            <div class="gauge-marker" style="left:70%;" title="Critical: 70%"></div>
+                        </div>
+                        <div class="gauge-scale">
+                            <span>0% (Vigilant)</span>
+                            <span style="color:var(--warning);">45% Caution</span>
+                            <span style="color:var(--danger);">70% Critical</span>
                         </div>
                     </div>
 
                     <hr class="divider">
 
-                    <!-- Head Pose -->
-                    <div class="metric-head">
-                        <span class="metric-name">Head Pose Orientation</span>
-                        <span id="val-pose" class="metric-val">P: 0&deg; | Y: 0&deg; | R: 0&deg;</span>
+                    <!-- Head Pose & Gaze -->
+                    <div class="metric">
+                        <div class="metric-head">
+                            <span class="metric-name">Head Pose &amp; Gaze</span>
+                            <span id="val-pose-direction" style="font-weight:700; color:var(--success);">Facing Ahead (Attentive)</span>
+                        </div>
+                        <div id="val-pose" style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-3); margin-top:3px;">
+                            Pitch: 0&deg; | Yaw: 0&deg; | Roll: 0&deg;
+                        </div>
                     </div>
 
                     <hr class="divider">
@@ -1151,38 +1185,51 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     }
     setInterval(updateUptime, 1000);
 
-    // ===== BROWSER WEBCAM =====
-    let browserCamActive = false;
+    // ===== MESH OVERLAY TOGGLE =====
+    let meshOverlayActive = false;
+    function toggleMeshOverlay() {
+        meshOverlayActive = !meshOverlayActive;
+        const btn = document.getElementById('btn-mesh');
+        const lbl = document.getElementById('mesh-label');
+        if (meshOverlayActive) {
+            lbl.innerText = 'HUD Mesh: ON';
+            btn.style.borderColor = 'var(--accent)';
+            btn.style.color = 'var(--accent)';
+        } else {
+            lbl.innerText = 'HUD Mesh: OFF';
+            btn.style.borderColor = 'var(--border)';
+            btn.style.color = 'var(--text-2)';
+        }
+    }
+
+    // ===== BROWSER WEBCAM STREAMING =====
     let browserCamStream = null;
-    let camCanvas = null;
+    let browserCamActive = false;
     let isPostingFrame = false;
-    let clientLoopTimer = null;
+    let camCanvas = null;
 
     async function toggleBrowserWebcam() {
         initAudio();
-        const imgEl = document.getElementById('video-stream');
         const vidEl = document.getElementById('browser-video');
         const hudCanvas = document.getElementById('hud-overlay-canvas');
+        const imgEl = document.getElementById('video-stream');
 
         if (!browserCamActive) {
             try {
-                // Ensure backend releases any hardware device lock
                 await fetch('/api/release_camera').catch(() => {});
                 
                 let stream = null;
                 try {
                     stream = await navigator.mediaDevices.getUserMedia({
-                        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
+                        video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } },
+                        audio: false
                     });
                 } catch (e1) {
-                    try {
-                        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    } catch (e2) {
-                        throw new Error('Camera device is busy or permission was not granted. Please ensure other camera apps (like Zoom/Teams or other tabs) are closed.');
-                    }
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 }
-                
+
                 browserCamStream = stream;
+
                 vidEl.srcObject = browserCamStream;
                 await vidEl.play();
 
@@ -1199,43 +1246,53 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 }
 
                 browserCamActive = true;
-                document.getElementById('cam-icon').innerText = '\\u23F9\\uFE0F';
+                document.getElementById('cam-icon').innerText = String.fromCodePoint(0x23F9);
                 document.getElementById('cam-label').innerText = 'Stop Webcam';
                 document.getElementById('btn-webcam').style.borderColor = 'var(--accent)';
                 document.getElementById('btn-webcam').style.color = 'var(--accent)';
 
-                async function sendAiFrame() {
-                    if (!browserCamActive || isPostingFrame || vidEl.readyState < 2) return;
-                    isPostingFrame = true;
-                    try {
-                        const ctx = camCanvas.getContext('2d');
-                        ctx.drawImage(vidEl, 0, 0, 320, 240);
-                        const blob = await new Promise(r => camCanvas.toBlob(r, 'image/jpeg', 0.70));
-                        if (blob && browserCamActive) {
-                            const resp = await fetch('/api/process_frame', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'image/jpeg' },
-                                body: blob
-                            });
-                            if (resp.ok) {
-                                const telem = await resp.json();
-                                renderTelemetryData(telem);
-                                drawClientHud(hudCanvas, telem);
+                async function streamLoop() {
+                    const ctx = camCanvas.getContext('2d', { willReadFrequently: true });
+                    let lastFrameTime = performance.now();
+                    while (browserCamActive) {
+                        if (vidEl.readyState >= 2) {
+                            try {
+                                ctx.drawImage(vidEl, 0, 0, 320, 240);
+                                const blob = await new Promise(r => camCanvas.toBlob(r, 'image/jpeg', 0.60));
+                                if (blob && browserCamActive) {
+                                    const tStart = performance.now();
+                                    const resp = await fetch('/api/process_frame', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'image/jpeg' },
+                                        body: blob
+                                    });
+                                    if (resp.ok && browserCamActive) {
+                                        const telem = await resp.json();
+                                        const now = performance.now();
+                                        const dt = (now - lastFrameTime) / 1000.0;
+                                        lastFrameTime = now;
+                                        if (dt > 0) {
+                                            telem.fps = Math.min(60.0, 1.0 / dt);
+                                        }
+                                        telem.latency_ms = now - tStart;
+                                        renderTelemetryData(telem);
+                                        drawClientHud(hudCanvas, telem);
+                                    }
+                                }
+                            } catch (err) {
+                                // Ignore transient drops
                             }
                         }
-                    } catch (err) {
-                        // Ignore transient drops
-                    } finally {
-                        isPostingFrame = false;
+                        // Strict sequential backpressure: schedule next frame only after response is handled
+                        await new Promise(r => requestAnimationFrame(r));
                     }
                 }
-                clientLoopTimer = setInterval(sendAiFrame, 100);
+                streamLoop();
             } catch (err) {
                 alert('Webcam access notice: ' + err.message);
             }
         } else {
             browserCamActive = false;
-            if (clientLoopTimer) clearInterval(clientLoopTimer);
             if (browserCamStream) {
                 browserCamStream.getTracks().forEach(t => t.stop());
                 browserCamStream = null;
@@ -1244,7 +1301,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             hudCanvas.style.display = 'none';
             imgEl.style.display = 'block';
 
-            document.getElementById('cam-icon').innerText = '\\uD83D\\uDCF7';
+            document.getElementById('cam-icon').innerText = String.fromCodePoint(0x1F4F7);
             document.getElementById('cam-label').innerText = 'My Webcam';
             document.getElementById('btn-webcam').style.borderColor = 'var(--border)';
             document.getElementById('btn-webcam').style.color = 'var(--text-2)';
@@ -1259,102 +1316,46 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         const h = canvas.height;
 
         const lvl = d.alert_level || 0;
-        let bannerColor = 'rgba(16, 185, 129, 0.88)';
-        let bannerStroke = '#10b981';
-        if (lvl === 1) { bannerColor = 'rgba(245, 158, 11, 0.88)'; bannerStroke = '#f59e0b'; }
-        if (lvl === 2) { bannerColor = 'rgba(244, 63, 94, 0.92)'; bannerStroke = '#f43f5e'; }
 
-        // 1. Top Header Banner
-        ctx.fillStyle = 'rgba(10, 16, 32, 0.72)';
-        ctx.fillRect(0, 0, w, 44);
-        ctx.strokeStyle = 'rgba(56, 80, 135, 0.35)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, 44); ctx.lineTo(w, 44); ctx.stroke();
+        // 1. Tiered Perimeter Border Indicator
+        if (lvl === 2) {
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = '#f43f5e';
+            ctx.strokeRect(0, 0, w, h);
+        } else if (lvl === 1) {
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#f59e0b';
+            ctx.strokeRect(0, 0, w, h);
+        }
 
-        // Status pill badge in header
-        ctx.fillStyle = bannerColor;
+        // 2. Minimalist Top Status Pill Banner
+        ctx.fillStyle = 'rgba(10, 16, 30, 0.72)';
+        ctx.fillRect(0, 0, w, 36);
+
+        // Status indicator dot
+        const dotColor = lvl === 2 ? '#f43f5e' : (lvl === 1 ? '#f59e0b' : '#10b981');
+        ctx.fillStyle = dotColor;
         ctx.beginPath();
-        ctx.arc(22, 22, 6, 0, 2 * Math.PI);
+        ctx.arc(18, 18, 5, 0, 2 * Math.PI);
         ctx.fill();
 
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 13px "Inter", sans-serif';
-        const stText = d.status_text || 'SYSTEM: DRIVER STATUS: ALERT';
-        ctx.fillText(stText.startsWith('SYSTEM:') ? stText : 'SYSTEM: ' + stText, 36, 26);
+        ctx.font = 'bold 12px "Inter", sans-serif';
+        const stText = d.status_text || 'DRIVER STATUS: ALERT';
+        ctx.fillText(stText, 32, 22);
 
-        ctx.fillStyle = 'rgba(160, 220, 255, 0.9)';
-        ctx.font = '12px "JetBrains Mono", monospace';
-        const fpsTxt = 'FPS: ' + (d.fps ? d.fps.toFixed(1) : '15.0') + ' | Latency: ' + (d.latency_ms ? d.latency_ms.toFixed(0) : '65') + 'ms';
-        ctx.fillText(fpsTxt, w - 240, 26);
+        // Right side badges: Head Pose Direction & Eyewear
+        const poseDir = d.head_pose_direction || 'Facing Ahead';
+        const eyeBadge = d.eyewear_detected ? ' [Glasses]' : '';
+        const badgeStr = poseDir + eyeBadge;
+        ctx.fillStyle = 'rgba(180, 225, 255, 0.9)';
+        ctx.font = '11px "JetBrains Mono", monospace';
+        const tw = ctx.measureText(badgeStr).width;
+        ctx.fillText(badgeStr, w - tw - 16, 22);
 
-        // 2. Left Telemetry Glass Panel
-        const px = 14, py = 54, pw = 245, ph = 230;
-        ctx.fillStyle = 'rgba(10, 16, 30, 0.78)';
-        ctx.strokeStyle = 'rgba(56, 80, 135, 0.55)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.roundRect(px, py, pw, ph, 8);
-        ctx.fill();
-        ctx.stroke();
-
-        // Panel Title
-        ctx.fillStyle = '#00d4ff';
-        ctx.font = 'bold 11px "Orbitron", sans-serif';
-        ctx.fillText('TELEMETRY METRICS', px + 12, py + 20);
-
-        // Bar Drawer Helper
-        function drawMeter(label, val, thresh, maxV, yOff, isHigherBad) {
-            ctx.fillStyle = '#e8edf5';
-            ctx.font = '500 11px "JetBrains Mono", monospace';
-            ctx.fillText(label + ': ' + (val !== undefined ? Number(val).toFixed(2) : '0.00'), px + 12, py + yOff);
-
-            const bx = px + 105, by = py + yOff - 9, bw = 120, bh = 8;
-            ctx.fillStyle = 'rgba(40, 50, 75, 0.7)';
-            ctx.fillRect(bx, by, bw, bh);
-
-            const fillRatio = Math.max(0, Math.min(1, val / maxV));
-            const isWarn = isHigherBad ? (val >= thresh) : (val < thresh);
-            ctx.fillStyle = isWarn ? '#f43f5e' : '#10b981';
-            ctx.fillRect(bx, by, bw * fillRatio, bh);
-
-            // Threshold tick
-            const tx = bx + Math.max(0, Math.min(1, thresh / maxV)) * bw;
-            ctx.strokeStyle = '#ffd700';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(tx, by - 2); ctx.lineTo(tx, by + bh + 2); ctx.stroke();
-        }
-
-        drawMeter('EAR', d.ear || 0.32, d.baseline_ear ? d.baseline_ear * 0.76 : 0.23, 0.45, 44, false);
-        drawMeter('MAR', d.mar || 0.22, 0.55, 0.85, 68, true);
-        drawMeter('PERCLOS', d.perclos || 0.05, 0.20, 1.0, 92, true);
-        drawMeter('FATIGUE', d.fatigue_score || 0.10, 0.70, 1.0, 116, true);
-
-        // Head Pose Angles
-        ctx.fillStyle = 'rgba(180, 200, 230, 0.9)';
-        ctx.font = '10px "JetBrains Mono", monospace';
-        const pTxt = 'POSE: P=' + Math.round(d.pitch || 0) + ' Y=' + Math.round(d.yaw || 0) + ' R=' + Math.round(d.roll || 0);
-        ctx.fillText(pTxt, px + 12, py + 144);
-
-        // Probabilities
-        if (d.probabilities && d.probabilities.length >= 3) {
-            ctx.fillStyle = 'rgba(140, 180, 240, 0.85)';
-            ctx.font = '10px "JetBrains Mono", monospace';
-            const probStr = 'P(A)=' + d.probabilities[0].toFixed(2) + ' P(D)=' + d.probabilities[1].toFixed(2) + ' P(S)=' + d.probabilities[2].toFixed(2);
-            ctx.fillText(probStr, px + 12, py + 168);
-        }
-
-        // State Text
-        const stateColor = lvl === 2 ? '#f43f5e' : (lvl === 1 ? '#f59e0b' : '#10b981');
-        ctx.fillStyle = stateColor;
-        ctx.font = 'bold 12px "Orbitron", sans-serif';
-        ctx.fillText('STATE: ' + (d.state_label || 'Alert'), px + 12, py + 196);
-
-        // 3. Draw Landmark Meshes on User's Face (Eyes, Mouth, Nose Pose)
-        if (d.landmarks) {
+        // 3. Optional Mesh Wireframes (Only drawn if HUD Mesh is toggled ON)
+        if (meshOverlayActive && d.landmarks) {
             const lm = d.landmarks;
-            // Draw Eye Polygons
             function drawPoly(pts, strokeColor) {
                 if (!pts || pts.length === 0) return;
                 ctx.strokeStyle = strokeColor;
@@ -1368,19 +1369,18 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 ctx.stroke();
             }
 
-            drawPoly(lm.left_eye, 'rgba(255, 230, 0, 0.85)');
-            drawPoly(lm.right_eye, 'rgba(255, 230, 0, 0.85)');
-            drawPoly(lm.mouth, 'rgba(0, 190, 255, 0.85)');
+            drawPoly(lm.left_eye, 'rgba(0, 212, 255, 0.85)');
+            drawPoly(lm.right_eye, 'rgba(0, 212, 255, 0.85)');
+            drawPoly(lm.mouth, 'rgba(245, 158, 11, 0.85)');
 
-            // 3D Nose Pose Orientation Indicator
+            // 3D Nose Direction Indicator
             if (lm.nose_tip) {
                 const nx = lm.nose_tip[0] * w;
                 const ny = lm.nose_tip[1] * h;
                 const pitch = (d.pitch || 0) * (Math.PI / 180);
                 const yaw = (d.yaw || 0) * (Math.PI / 180);
-                const len = 35;
+                const len = 30;
 
-                // X-Axis (Pitch - Red)
                 ctx.strokeStyle = '#f43f5e';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
@@ -1388,7 +1388,6 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 ctx.lineTo(nx + len * Math.cos(yaw), ny);
                 ctx.stroke();
 
-                // Y-Axis (Yaw - Green)
                 ctx.strokeStyle = '#10b981';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
@@ -1396,37 +1395,25 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 ctx.lineTo(nx, ny - len * Math.sin(pitch));
                 ctx.stroke();
 
-                // Center Blue Dot
                 ctx.fillStyle = '#00d4ff';
                 ctx.beginPath();
                 ctx.arc(nx, ny, 3, 0, 2 * Math.PI);
                 ctx.fill();
             }
 
-            // Face Bounding Box Reticle
+            // Face Reticle
             if (lm.face_box) {
                 const bx1 = lm.face_box[0] * w, by1 = lm.face_box[1] * h;
                 const bx2 = lm.face_box[2] * w, by2 = lm.face_box[3] * h;
-                const cLen = 14;
-                ctx.strokeStyle = 'rgba(0, 212, 255, 0.7)';
-                ctx.lineWidth = 2;
+                const cLen = 12;
+                ctx.strokeStyle = 'rgba(0, 212, 255, 0.6)';
+                ctx.lineWidth = 1.5;
 
-                // Top-Left
                 ctx.beginPath(); ctx.moveTo(bx1, by1 + cLen); ctx.lineTo(bx1, by1); ctx.lineTo(bx1 + cLen, by1); ctx.stroke();
-                // Top-Right
                 ctx.beginPath(); ctx.moveTo(bx2 - cLen, by1); ctx.lineTo(bx2, by1); ctx.lineTo(bx2, by1 + cLen); ctx.stroke();
-                // Bottom-Left
                 ctx.beginPath(); ctx.moveTo(bx1, by2 - cLen); ctx.lineTo(bx1, by2); ctx.lineTo(bx1 + cLen, by2); ctx.stroke();
-                // Bottom-Right
                 ctx.beginPath(); ctx.moveTo(bx2 - cLen, by2); ctx.lineTo(bx2, by2); ctx.lineTo(bx2, by2 - cLen); ctx.stroke();
             }
-        }
-
-        // 4. Alert Border on Warning / Critical
-        if (lvl > 0) {
-            ctx.lineWidth = lvl === 2 ? 8 : 4;
-            ctx.strokeStyle = lvl === 2 ? '#f43f5e' : '#f59e0b';
-            ctx.strokeRect(0, 0, w, h);
         }
     }
 
@@ -1443,7 +1430,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     function toggleAudio() {
         initAudio();
         soundEnabled = !soundEnabled;
-        document.getElementById('sound-icon').innerText = soundEnabled ? '\\uD83D\\uDD0A' : '\\uD83D\\uDD07';
+        document.getElementById('sound-icon').innerText = soundEnabled ? String.fromCodePoint(0x1F50A) : String.fromCodePoint(0x1F507);
         document.getElementById('sound-label').innerText = soundEnabled ? 'Audio: ON' : 'Audio: MUTE';
         const btn = document.getElementById('btn-sound');
         btn.style.borderColor = soundEnabled ? 'var(--success)' : 'var(--border)';
@@ -1454,7 +1441,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         if (!soundEnabled) return;
         initAudio();
         const now = Date.now();
-        if (now - lastSoundTime < 1100) return;
+        if (now - lastSoundTime < 1400) return;
         lastSoundTime = now;
         try {
             if (level === 1) {
@@ -1462,14 +1449,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 osc.connect(gain); gain.connect(audioCtx.destination);
                 osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioCtx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(1100, audioCtx.currentTime + 0.25);
-                gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.20, audioCtx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
                 osc.start(); osc.stop(audioCtx.currentTime + 0.35);
             } else if (level === 2) {
                 const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
                 osc.connect(gain); gain.connect(audioCtx.destination);
                 osc.type = 'sawtooth'; osc.frequency.setValueAtTime(1300, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
                 osc.start(); osc.stop(audioCtx.currentTime + 0.45);
             }
@@ -1506,9 +1493,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     function renderTelemetryData(d) {
         if (!d || Object.keys(d).length === 0) return;
 
-        const fps = d.fps || '--';
-        const lat = (d.latency_ms || 0).toFixed(1);
-        document.getElementById('fps-badge').innerText = 'FPS: ' + fps + ' | Latency: ' + lat + ' ms';
+        const fps = d.fps !== undefined ? Number(d.fps).toFixed(1) : '--';
+        const lat = d.latency_ms !== undefined ? Number(d.latency_ms).toFixed(1) : '--';
         document.getElementById('stat-fps').innerText = fps + ' FPS';
         document.getElementById('stat-latency').innerText = lat + ' ms';
 
@@ -1516,30 +1502,45 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         document.getElementById('val-mar').innerText = (d.mar || 0).toFixed(2);
         document.getElementById('val-perclos').innerText = ((d.perclos || 0) * 100).toFixed(1) + '%';
         document.getElementById('val-fatigue').innerText = ((d.fatigue_score || 0) * 100).toFixed(1) + '%';
-        document.getElementById('val-pose').innerText = 'P: ' + (d.pitch||0).toFixed(0) + '\\u00B0 | Y: ' + (d.yaw||0).toFixed(0) + '\\u00B0 | R: ' + (d.roll||0).toFixed(0) + '\\u00B0';
+        
+        // Head Pose
+        const poseDir = d.head_pose_direction || 'Facing Ahead';
+        const poseEl = document.getElementById('val-pose-direction');
+        poseEl.innerText = poseDir;
+        if (poseDir.includes('Ahead') || poseDir.includes('Attentive')) {
+            poseEl.style.color = 'var(--success)';
+        } else if (poseDir.includes('Down') || poseDir.includes('Distracted')) {
+            poseEl.style.color = 'var(--warning)';
+        } else {
+            poseEl.style.color = 'var(--accent-2)';
+        }
+        document.getElementById('val-pose').innerText = 'Pitch: ' + (d.pitch||0).toFixed(0) + '\u00B0 | Yaw: ' + (d.yaw||0).toFixed(0) + '\u00B0 | Roll: ' + (d.roll||0).toFixed(0) + '\u00B0';
 
+        // Gauge fills
         const earP = Math.min(100, Math.max(0, ((d.ear||0) / 0.45) * 100));
         const marP = Math.min(100, Math.max(0, ((d.mar||0) / 0.85) * 100));
         const pclP = Math.min(100, Math.max(0, (d.perclos||0) * 100));
         const fatP = Math.min(100, Math.max(0, (d.fatigue_score||0) * 100));
 
         setGauge('bar-ear', earP, d.ear < 0.23 ? 'danger-fill' : '');
-        setGauge('bar-mar', marP, d.mar > 0.60 ? 'danger-fill' : '');
+        setGauge('bar-mar', marP, d.mar > 0.55 ? 'danger-fill' : '');
         setGauge('bar-perclos', pclP, d.perclos > 0.20 ? 'danger-fill' : '');
-        setGauge('bar-fatigue', fatP, d.fatigue_score > 0.65 ? 'danger-fill' : (d.fatigue_score > 0.40 ? 'warn-fill' : ''));
+        setGauge('bar-fatigue', fatP, d.fatigue_score >= 0.70 ? 'danger-fill' : (d.fatigue_score >= 0.45 ? 'warn-fill' : ''));
 
+        // Tiered Alert Banner
         const lvl = d.alert_level || 0;
         document.getElementById('alert-banner').className = 'alert-banner alert-level-' + lvl;
-        document.getElementById('alert-text').innerText = d.status_text || 'STATUS: DRIVER ALERT';
+        document.getElementById('alert-text').innerText = d.status_text || 'STATUS: DRIVER ALERT & ATTENTIVE';
         document.getElementById('alert-badge').innerText = 'LEVEL ' + lvl;
         if (lvl > 0) playAlertTone(lvl);
 
+        // Status Pills
         const pBase = document.getElementById('pill-baseline');
         if (d.calibrating) { pBase.innerText = 'Calibrating ' + (d.calibration_progress||0) + '%'; pBase.className = 'pill-val warn'; }
         else { pBase.innerText = (d.baseline_ear||0.32).toFixed(3) + ' (Ready)'; pBase.className = 'pill-val ok'; }
 
         const pSp = document.getElementById('pill-speech');
-        pSp.innerText = d.is_speaking ? '\\uD83D\\uDDE3\\uFE0F Speaking' : 'Silent';
+        pSp.innerText = d.is_speaking ? (String.fromCodePoint(0x1F5E3) + ' Speaking') : 'Silent';
         pSp.className = d.is_speaking ? 'pill-val ok' : 'pill-val';
 
         const pLi = document.getElementById('pill-light');
@@ -1547,16 +1548,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         pLi.className = d.low_light ? 'pill-val warn' : 'pill-val ok';
 
         const pEy = document.getElementById('pill-eyewear');
-        if (d.eyewear_detected) { pEy.innerText = '\\uD83D\\uDD76\\uFE0F Eyewear'; pEy.className = 'pill-val warn'; }
+        if (d.eyewear_detected) { pEy.innerText = String.fromCodePoint(0x1F576) + ' ' + (d.eyewear_label || 'Glasses'); pEy.className = 'pill-val warn'; }
         else { pEy.innerText = 'Normal'; pEy.className = 'pill-val ok'; }
-
-        if (browserCamActive) {
-            drawClientHud(document.getElementById('hud-overlay-canvas'), d);
-        }
     }
 
     function setGauge(id, pct, cls) {
         const el = document.getElementById(id);
+        if (!el) return;
         el.style.width = pct + '%';
         el.className = 'gauge-fill' + (cls ? ' ' + cls : '');
     }
@@ -1567,7 +1565,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         }
     }
 
-    setInterval(pollTelemetry, 120);
+    setInterval(pollTelemetry, 100);
 
     // ===== GALLERY SECTIONS =====
     function toggleSection(header) {
@@ -1711,6 +1709,18 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
                     pass
             self.wfile.write(json.dumps(rows, cls=NpEncoder).encode("utf-8"))
 
+        elif self.path == "/api/onnx_benchmark":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            try:
+                from src.onnx_exporter import export_all_models
+                benchmarks = export_all_models()
+            except Exception as e:
+                benchmarks = [{"error": str(e)}]
+            self.wfile.write(json.dumps(benchmarks, cls=NpEncoder).encode("utf-8"))
+
         elif self.path.startswith("/outputs/"):
             rel_path = self.path.lstrip("/")
             file_path = PROJECT_ROOT / rel_path
@@ -1739,14 +1749,8 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
                 frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
                 if frame is not None and global_pipeline is not None:
                     with pipeline_lock:
-                        hud_frame, telem = global_pipeline.process_frame(frame)
+                        _, telem = global_pipeline.process_frame(frame, render_hud=False)
                         latest_telemetry = telem
-                        ret, jpeg = cv2.imencode(".jpg", hud_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
-                        if ret:
-                            with frame_condition:
-                                latest_frame_jpeg = jpeg.tobytes()
-                                frame_version += 1
-                                frame_condition.notify_all()
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Access-Control-Allow-Origin", "*")

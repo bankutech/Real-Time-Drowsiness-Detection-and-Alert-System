@@ -23,11 +23,13 @@ VIDEOS_DIR = PROJECT_ROOT / "videos"
 EDA_OUTPUT_DIR = OUTPUTS_DIR / "eda"
 EVAL_OUTPUT_DIR = OUTPUTS_DIR / "evaluation"
 CLUSTERING_OUTPUT_DIR = OUTPUTS_DIR / "clustering"
+ONNX_MODELS_DIR = MODELS_DIR / "onnx"
 
 # Ensure all directories exist
 for directory in [
     DATASET_DIR,
     MODELS_DIR,
+    ONNX_MODELS_DIR,
     OUTPUTS_DIR,
     LOGS_DIR,
     VIDEOS_DIR,
@@ -96,12 +98,12 @@ MOUTH_LANDMARKS = [61, 291, 13, 14, 0, 17, 78, 308, 82, 312, 87, 317]
 # Nose tip, Chin, Left eye left corner, Right eye right corner, Left mouth corner, Right mouth corner
 HEAD_POSE_LANDMARK_IDS = [1, 199, 33, 263, 61, 291]
 CANONICAL_3D_FACE_MODEL = [
-    (0.0, 0.0, 0.0),          # Nose tip
-    (0.0, -330.0, -65.0),     # Chin
-    (-225.0, 170.0, -135.0),  # Left eye outer corner
-    (225.0, 170.0, -135.0),   # Right eye outer corner
-    (-150.0, -150.0, -125.0), # Left mouth corner
-    (150.0, -150.0, -125.0),  # Right mouth corner
+    (0.0, 0.0, 0.0),          # Nose tip (landmark 1)
+    (0.0, 330.0, -65.0),      # Chin (landmark 199, +Y is down in image space)
+    (-225.0, -170.0, -135.0), # Right eye outer corner (landmark 33, -X, -Y)
+    (225.0, -170.0, -135.0),  # Left eye outer corner (landmark 263, +X, -Y)
+    (-150.0, 150.0, -125.0),  # Right mouth corner (landmark 61, -X, +Y)
+    (150.0, 150.0, -125.0),   # Left mouth corner (landmark 291, +X, +Y)
 ]
 
 # ==========================================
@@ -119,6 +121,8 @@ FEATURE_COLUMNS = [
     "head_yaw",
     "head_roll",
     "perclos",
+    "ear_velocity",
+    "ear_acceleration",
 ]
 
 TARGET_COLUMN = "state"
@@ -137,6 +141,12 @@ EAR_SLEEP_THRESH = 0.18
 # Mouth Aspect Ratio (MAR) Thresholds
 MAR_YAWN_THRESH = 0.60
 MAR_ALERT_MAX = 0.40
+
+# Dynamic Lighting Augmentation (CLAHE)
+CLAHE_CLIP_LIMIT = 2.5
+CLAHE_GRID_SIZE = (8, 8)
+LOW_LIGHT_LUMINANCE_THRESHOLD = 70.0  # Apply CLAHE when average LAB L-channel < 70
+ENABLE_AUTO_CLAHE = True
 
 # Temporal Windows & Counters (in frames @ 30 FPS)
 BLINK_CONSEC_FRAMES_MIN = 2

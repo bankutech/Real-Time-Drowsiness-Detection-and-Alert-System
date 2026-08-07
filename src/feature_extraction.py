@@ -72,6 +72,39 @@ def calculate_mar(mouth_landmarks: Dict[str, Tuple[float, float]]) -> float:
         return 0.0
 
 
+def enhance_low_light_clahe(
+    frame_bgr: np.ndarray,
+    clip_limit: float = config.CLAHE_CLIP_LIMIT,
+    grid_size: Tuple[int, int] = config.CLAHE_GRID_SIZE,
+    threshold: float = config.LOW_LIGHT_LUMINANCE_THRESHOLD,
+    force_apply: bool = False,
+) -> Tuple[np.ndarray, bool, float]:
+    """
+    Dynamic Lighting Augmentation via Contrast Limited Adaptive Histogram Equalization (CLAHE).
+    Detects low-light or infrared underexposed conditions by measuring the mean luminance of the
+    LAB L-channel. If mean luminance < threshold, CLAHE is applied to the L-channel to boost
+    contrast and maximize MediaPipe facial landmark detection precision.
+
+    Returns:
+        Tuple of (processed_frame_bgr, is_enhanced_flag, mean_luminance)
+    """
+    if frame_bgr is None or frame_bgr.size == 0:
+        return frame_bgr, False, 0.0
+
+    lab = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2LAB)
+    l_channel, a_channel, b_channel = cv2.split(lab)
+    mean_luminance = float(np.mean(l_channel))
+
+    if force_apply or mean_luminance < threshold:
+        clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=grid_size)
+        enhanced_l = clahe.apply(l_channel)
+        enhanced_lab = cv2.merge([enhanced_l, a_channel, b_channel])
+        enhanced_bgr = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+        return enhanced_bgr, True, mean_luminance
+
+    return frame_bgr, False, mean_luminance
+
+
 class BlinkAndYawnTracker:
     """
     Maintains temporal sliding windows and state machines to track:
@@ -79,6 +112,7 @@ class BlinkAndYawnTracker:
     - Continuous eye closure duration (sec)
     - Yawn occurrences and frequency
     - PERCLOS (Percentage of Eye Closure over sliding window)
+    - Temporal Differential Features: EAR Velocity (dEAR/dt) and EAR Acceleration (d^2EAR/dt^2)
     """
 
     def __init__(self, fps: float = config.DEFAULT_FPS, perclos_window_size: int = config.PERCLOS_WINDOW_SIZE):
@@ -102,6 +136,11 @@ class BlinkAndYawnTracker:
         self.total_yawns = 0
         self.yawn_timestamps = collections.deque()
         self.is_yawning = False
+
+        # Temporal Differential Tracking (Velocity & Acceleration)
+        self.prev_ear: Optional[float] = None
+        self.prev_velocity: float = 0.0
+        self.last_time: Optional[float] = None
 
     def update(self, ear: float, mar: float, current_time: float) -> Dict[str, float]:
         """
@@ -151,6 +190,22 @@ class BlinkAndYawnTracker:
         # Yawn frequency (normalized 0..1 per minute factor)
         yawn_freq = float(min(1.0, len(self.yawn_timestamps) / 5.0))
 
+        # 4. Temporal Differential Dynamics (EAR Velocity & Acceleration)
+        dt = 1.0 / self.fps
+        if self.last_time is not None and current_time > self.last_time:
+            dt = max(1e-4, current_time - self.last_time)
+
+        if self.prev_ear is not None:
+            ear_velocity = float((ear - self.prev_ear) / dt)
+            ear_acceleration = float((ear_velocity - self.prev_velocity) / dt)
+        else:
+            ear_velocity = 0.0
+            ear_acceleration = 0.0
+
+        self.prev_ear = ear
+        self.prev_velocity = ear_velocity
+        self.last_time = current_time
+
         return {
             "perclos": perclos,
             "blink_count": self.total_blinks,
@@ -160,6 +215,8 @@ class BlinkAndYawnTracker:
             "yawn_count": self.total_yawns,
             "yawn_freq": yawn_freq,
             "is_yawning": self.is_yawning,
+            "ear_velocity": ear_velocity,
+            "ear_acceleration": ear_acceleration,
         }
 
     def reset(self) -> None:
@@ -173,6 +230,9 @@ class BlinkAndYawnTracker:
         self.total_yawns = 0
         self.yawn_timestamps.clear()
         self.is_yawning = False
+        self.prev_ear = None
+        self.prev_velocity = 0.0
+        self.last_time = None
 
 
 def estimate_head_pose(
@@ -224,16 +284,92 @@ def estimate_head_pose(
     rot_mat, _ = cv2.Rodrigues(rotation_vec)
 
     # Extract Euler angles (in degrees)
-    # RQDecomp3x3 decomposes a 3x3 rotation matrix into 3 Euler angles
     euler_angles, _, _, _, _, _ = cv2.RQDecomp3x3(rot_mat)
-    pitch = float(euler_angles[0])
-    yaw = float(euler_angles[1])
-    roll = float(euler_angles[2])
+    
+    # Normalize Euler angles to [-90, +90] range around neutral forward gaze
+    def _norm_deg(a: float) -> float:
+        a = (a + 180.0) % 360.0 - 180.0
+        if a > 90.0:
+            a -= 180.0
+        elif a < -90.0:
+            a += 180.0
+        return float(a)
+
+    pitch = _norm_deg(euler_angles[0])
+    yaw = _norm_deg(euler_angles[1])
+    roll = _norm_deg(euler_angles[2])
 
     # Face Angle magnitude
     face_angle = float(math.sqrt(pitch**2 + yaw**2 + roll**2))
 
     return pitch, yaw, roll, face_angle, rotation_vec, translation_vec, camera_matrix, dist_coeffs
+
+
+def get_head_pose_direction(pitch: float, yaw: float, roll: float) -> str:
+    """Provides human-readable semantic driver orientation and gaze direction."""
+    if pitch > 18.0:
+        return "Looking Down (Distracted)"
+    elif pitch < -18.0:
+        return "Looking Up"
+    elif yaw < -20.0:
+        return "Looking Left (Distracted)"
+    elif yaw > 20.0:
+        return "Looking Right (Distracted)"
+    elif abs(roll) > 20.0:
+        return "Head Tilted (Fatigued)"
+    else:
+        return "Facing Ahead (Attentive)"
+
+
+def detect_eyewear(frame: np.ndarray, landmarks_2d_dict: Dict[int, Tuple[float, float]]) -> Tuple[bool, str]:
+    """
+    Computer Vision Eyewear & Glasses Detector.
+    Analyzes horizontal nose bridge frame edge gradient, orbital rim contrast,
+    and lens specular reflection / anti-reflective glare.
+    """
+    if len(landmarks_2d_dict) < 30:
+        return False, "None"
+
+    # Require inner eye corners (133, 362) and nose bridge landmark (6 or 168)
+    if 133 not in landmarks_2d_dict or 362 not in landmarks_2d_dict:
+        return False, "None"
+
+    p_r = landmarks_2d_dict[133]  # Right inner eye corner
+    p_l = landmarks_2d_dict[362]  # Left inner eye corner
+    p_bridge = landmarks_2d_dict.get(6, landmarks_2d_dict.get(168, ((p_r[0] + p_l[0]) / 2.0, (p_r[1] + p_l[1]) / 2.0)))
+
+    h_img, w_img = frame.shape[:2]
+    x1 = max(0, int(min(p_r[0], p_l[0])))
+    x2 = min(w_img, int(max(p_r[0], p_l[0])))
+    y_mid = int(p_bridge[1])
+    y1 = max(0, y_mid - 16)
+    y2 = min(h_img, y_mid + 16)
+
+    if x2 - x1 < 10 or y2 - y1 < 10:
+        return False, "None"
+
+    roi = frame[y1:y2, x1:x2]
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi
+
+    # Vertical gradient across horizontal bridge bar
+    sobely = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+    grad_y = float(np.mean(np.abs(sobely)))
+
+    # Canny edge density across bridge
+    edges = cv2.Canny(gray, 30, 85)
+    edge_density = float(np.mean(edges > 0))
+
+    # Specular reflection / glare on lenses
+    glare_ratio = float(np.mean(gray > 210))
+
+    # Overall glasses detection heuristic
+    is_glasses = (grad_y > 8.5 and edge_density > 0.030) or (glare_ratio > 0.035) or (edge_density > 0.06)
+
+    if is_glasses:
+        label = "Glasses" if glare_ratio > 0.02 or edge_density < 0.15 else "Eyewear"
+        return True, label
+
+    return False, "None"
 
 
 class FeatureExtractor:
@@ -284,16 +420,25 @@ class FeatureExtractor:
         frame: np.ndarray,
         current_time: Optional[float] = None,
         draw_overlays: bool = True,
+        apply_clahe: bool = config.ENABLE_AUTO_CLAHE,
     ) -> Tuple[Dict[str, float], np.ndarray, Dict[str, Any]]:
         """
         Processes a single BGR camera frame and returns:
-        1. Feature dictionary matching config.FEATURE_COLUMNS
+        1. Feature dictionary matching config.FEATURE_COLUMNS (13 features)
         2. Annotated frame with overlays
         3. Raw telemetry & pose metadata
         """
         h, w = frame.shape[:2]
         t = current_time if current_time is not None else 0.0
-        annotated_frame = frame.copy() if draw_overlays else frame
+
+        # 0. Dynamic Lighting Augmentation (CLAHE)
+        enhanced_input_frame = frame
+        clahe_applied = False
+        luminance = 100.0
+        if apply_clahe:
+            enhanced_input_frame, clahe_applied, luminance = enhance_low_light_clahe(frame)
+
+        annotated_frame = (enhanced_input_frame.copy() if clahe_applied else frame.copy()) if draw_overlays else frame
 
         landmarks_2d_dict = {}
         all_landmarks_px = []
@@ -301,7 +446,7 @@ class FeatureExtractor:
         # 1. Detect Face Mesh Landmarks
         if self.landmarker is not None:
             try:
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                rgb_frame = cv2.cvtColor(enhanced_input_frame, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
                 detection_result = self.landmarker.detect(mp_image)
 
@@ -361,7 +506,7 @@ class FeatureExtractor:
             pitch, yaw, roll, face_angle = 0.0, 0.0, 0.0, 0.0
             rvec, tvec, cam_mat, dist_coeff = np.zeros(3), np.zeros(3), np.eye(3), np.zeros((4, 1))
 
-        # 3. Update Temporal Tracker (Blink, Yawn, PERCLOS)
+        # 3. Update Temporal Tracker (Blink, Yawn, PERCLOS, Velocity & Acceleration)
         tracker_res = self.tracker.update(ear=ear, mar=mar, current_time=t)
 
         # 4. Normalized Landmarks Summary for Client HUD Overlay
@@ -388,7 +533,11 @@ class FeatureExtractor:
                 "face_box": face_box
             }
 
-        # 5. Assemble Standardized Feature Vector
+        # 5. Semantic Driving Orientation & Eyewear Analysis
+        eyewear_detected, eyewear_label = detect_eyewear(frame, landmarks_2d_dict)
+        head_pose_dir = get_head_pose_direction(pitch, yaw, roll)
+
+        # 6. Assemble Standardized Feature Vector (13 Features)
         features = {
             "ear": float(ear),
             "mar": float(mar),
@@ -401,6 +550,8 @@ class FeatureExtractor:
             "head_yaw": float(yaw),
             "head_roll": float(roll),
             "perclos": float(tracker_res["perclos"]),
+            "ear_velocity": float(tracker_res["ear_velocity"]),
+            "ear_acceleration": float(tracker_res["ear_acceleration"]),
         }
 
         telemetry = {
@@ -413,6 +564,13 @@ class FeatureExtractor:
             "head_pitch": pitch,
             "head_yaw": yaw,
             "head_roll": roll,
+            "head_pose_direction": head_pose_dir,
+            "eyewear_detected": eyewear_detected,
+            "eyewear_label": eyewear_label,
+            "ear_velocity": tracker_res["ear_velocity"],
+            "ear_acceleration": tracker_res["ear_acceleration"],
+            "clahe_applied": clahe_applied,
+            "luminance": round(luminance, 1),
         }
 
         return features, annotated_frame, telemetry

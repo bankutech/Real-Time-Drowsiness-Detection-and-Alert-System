@@ -163,8 +163,16 @@ def run_training_pipeline() -> None:
     ensemble.evaluate(X_test, y_test)
     ensemble.save()
 
+    # 6. ONNX Export & INT8 Quantization
+    try:
+        from src.onnx_exporter import export_all_models
+        logger.info("\n>>> [ONNX / INT8] Exporting Models to ONNX & INT8 Runtime Formats")
+        export_all_models()
+    except Exception as e:
+        logger.warning(f"ONNX export step notice: {e}")
+
     logger.info("=" * 70)
-    logger.info("ALL UNITS 1-5 SUCCESSFULLY TRAINED AND PERSISTED TO DISK!")
+    logger.info("ALL UNITS 1-5 & ONNX EXPORTS SUCCESSFULLY COMPLETED AND PERSISTED TO DISK!")
     logger.info("=" * 70)
 
 

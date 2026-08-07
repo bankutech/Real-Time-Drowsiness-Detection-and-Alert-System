@@ -149,14 +149,21 @@ class AlertManager:
             self.consecutive_drowsy = max(0, self.consecutive_drowsy - 2)
             self.consecutive_sleeping = max(0, self.consecutive_sleeping - 3)
 
-        # Determine Alert Level
+        # Determine Alert Level (Tiered Safety Escalation to Eliminate Alarm Fatigue)
+        # Level 2 (CRITICAL EMERGENCY):
+        # Requires SUSTAINED confirmed eye closure (>= critical_threshold frames) OR 
+        # extreme fatigue score (>= 0.78) with verified biometric eye closure (EAR < 0.22 or PERCLOS > 0.25).
+        # Transient blinks or single-frame fluctuations will NEVER fire Level 2.
         prev_level = self.current_alert_level
-        if self.consecutive_sleeping >= self.critical_threshold or fatigue_score >= getattr(config, "CRITICAL_FATIGUE_THRESHOLD", 0.70):
+        is_eyes_closed_sustained = (self.consecutive_sleeping >= self.critical_threshold) or (self.consecutive_sleeping >= 15 and ear < 0.20)
+        is_extreme_fatigue_confirmed = (fatigue_score >= 0.78 and (ear < 0.22 or perclos > 0.25))
+
+        if is_eyes_closed_sustained or is_extreme_fatigue_confirmed:
             self.current_alert_level = 2
             self.current_status_text = "CRITICAL: SLEEPING DETECTED!"
-        elif self.consecutive_drowsy >= self.warning_threshold or fatigue_score >= getattr(config, "DROWSY_FATIGUE_THRESHOLD", 0.45):
+        elif self.consecutive_drowsy >= self.warning_threshold or fatigue_score >= 0.50 or perclos >= 0.18:
             self.current_alert_level = 1
-            self.current_status_text = "WARNING: DROWSINESS DETECTED"
+            self.current_status_text = "WARNING: DROWSINESS TRENDING"
         else:
             self.current_alert_level = 0
             self.current_status_text = "DRIVER STATUS: ALERT"
