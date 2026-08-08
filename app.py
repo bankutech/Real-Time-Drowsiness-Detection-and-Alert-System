@@ -409,30 +409,34 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             width: 44px;
             height: 44px;
             border-radius: var(--radius-md);
-            background: var(--grad-brand);
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.15) 0%, rgba(99, 102, 241, 0.22) 100%);
+            border: 1px solid rgba(0, 240, 255, 0.4);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 25px var(--cyan-glow);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.25), inset 0 0 12px rgba(0, 240, 255, 0.08);
             flex-shrink: 0;
             overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .brand-icon-wrap::before {
-            content: '';
-            position: absolute;
-            inset: 1px;
-            background: rgba(6, 10, 24, 0.85);
-            border-radius: 11px;
-            z-index: 1;
+        .brand-icon-wrap:hover {
+            transform: scale(1.06) rotate(-2deg);
+            border-color: var(--cyan);
+            box-shadow: 0 0 28px rgba(0, 240, 255, 0.5), inset 0 0 16px rgba(0, 240, 255, 0.2);
         }
 
-        .brand-icon-symbol {
-            position: relative;
-            z-index: 2;
-            font-size: 1.35rem;
-            color: var(--cyan);
-            filter: drop-shadow(0 0 6px var(--cyan));
+        .brand-logo-svg {
+            width: 32px;
+            height: 32px;
+            display: block;
+            filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.6));
+            animation: pulseGlow 4s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulseGlow {
+            0% { filter: drop-shadow(0 0 4px rgba(0, 240, 255, 0.4)); }
+            100% { filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.8)); }
         }
 
         .brand-title-wrap {
@@ -1917,8 +1921,43 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         <!-- ===== COCKPIT HEADER ===== -->
         <header>
             <div class="brand-container">
-                <div class="brand-icon-wrap">
-                    <span class="brand-icon-symbol">&#128663;</span>
+                <div class="brand-icon-wrap" title="Driver Safety AI Cockpit">
+                    <svg class="brand-logo-svg" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="cyber-grad-primary" x1="4" y1="4" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#00f0ff"/>
+                                <stop offset="0.5" stop-color="#38bdf8"/>
+                                <stop offset="1" stop-color="#6366f1"/>
+                            </linearGradient>
+                            <linearGradient id="cyber-grad-accent" x1="12" y1="14" x2="32" y2="30" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#00f0ff"/>
+                                <stop offset="1" stop-color="#a855f7"/>
+                            </linearGradient>
+                        </defs>
+                        <!-- Outer Radar Reticle Ring -->
+                        <circle cx="22" cy="22" r="18" stroke="url(#cyber-grad-primary)" stroke-width="1.2" stroke-dasharray="3 2.5" opacity="0.5"/>
+                        
+                        <!-- Biometric Vision Eye & Cockpit Shield -->
+                        <path d="M7 22C11 14 16 10 22 10C28 10 33 14 37 22C33 30 28 34 22 34C16 34 11 30 7 22Z" 
+                              stroke="url(#cyber-grad-primary)" stroke-width="2" stroke-linejoin="round" fill="rgba(6, 14, 34, 0.7)"/>
+                        
+                        <!-- High-Tech Vehicle Hood / Horizon Vectors -->
+                        <path d="M14 28L18 22H26L30 28" stroke="url(#cyber-grad-accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        
+                        <!-- Twin Laser Headlights -->
+                        <circle cx="17.5" cy="24" r="1.3" fill="#00f0ff"/>
+                        <circle cx="26.5" cy="24" r="1.3" fill="#00f0ff"/>
+                        
+                        <!-- Core Neural Pupil & Optical Sensor -->
+                        <circle cx="22" cy="18" r="4.2" stroke="#00f0ff" stroke-width="1.5" fill="#030712"/>
+                        <circle cx="22" cy="18" r="2.2" fill="#00f0ff"/>
+                        
+                        <!-- Targeting Crosshairs -->
+                        <line x1="22" y1="5" x2="22" y2="8" stroke="#00f0ff" stroke-width="1.8" stroke-linecap="round"/>
+                        <line x1="22" y1="36" x2="22" y2="39" stroke="#6366f1" stroke-width="1.8" stroke-linecap="round"/>
+                        <line x1="4" y1="22" x2="6.5" y2="22" stroke="#00f0ff" stroke-width="1.8" stroke-linecap="round"/>
+                        <line x1="37.5" y1="22" x2="40" y2="22" stroke="#00f0ff" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
                 </div>
                 <div class="brand-title-wrap">
                     <span class="brand-title">DRIVER SAFETY AI</span>
