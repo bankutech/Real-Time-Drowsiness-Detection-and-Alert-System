@@ -53,6 +53,29 @@ class SoundGenerator:
             except Exception:
                 logger.warning("Audio device unavailable. Running in visual-only mode.")
 
+        import queue
+        self._sound_queue = queue.Queue(maxsize=3)
+        self._worker_thread = None
+        if not self.pygame_initialized and self.audio_available:
+            self._start_worker()
+
+    def _start_worker(self):
+        """Starts a single background worker for synchronous winsound fallback."""
+        def _worker():
+            import winsound
+            while True:
+                try:
+                    level = self._sound_queue.get()
+                    if level == 1:
+                        winsound.Beep(880, 200)
+                    elif level == 2:
+                        winsound.Beep(1200, 400)
+                except Exception:
+                    pass
+
+        self._worker_thread = threading.Thread(target=_worker, daemon=True)
+        self._worker_thread.start()
+
     def _precompute_sounds(self):
         """Generates raw PCM sine wave alert sounds."""
         import pygame
@@ -70,27 +93,24 @@ class SoundGenerator:
         self.sound_cache["critical"] = pygame.sndarray.make_sound(stereo_crit)
 
     def play_tone(self, alert_level: int):
-        """Dispatches non-blocking audio alerts according to severity."""
+        """Dispatches zero-overhead audio alerts according to severity."""
         if not self.audio_available:
             return
 
-        def _play():
-            try:
-                if self.pygame_initialized:
-                    if alert_level == 1 and "warning" in self.sound_cache:
-                        self.sound_cache["warning"].play()
-                    elif alert_level == 2 and "critical" in self.sound_cache:
-                        self.sound_cache["critical"].play()
-                else:
-                    import winsound
-                    if alert_level == 1:
-                        winsound.Beep(880, 200)
-                    elif alert_level == 2:
-                        winsound.Beep(1200, 400)
-            except Exception as ex:
-                logger.debug(f"Audio playback error: {ex}")
-
-        threading.Thread(target=_play, daemon=True).start()
+        try:
+            if self.pygame_initialized:
+                # Pygame Sound.play() is natively C-level asynchronous (zero Python thread overhead)
+                if alert_level == 1 and "warning" in self.sound_cache:
+                    self.sound_cache["warning"].play()
+                elif alert_level == 2 and "critical" in self.sound_cache:
+                    self.sound_cache["critical"].play()
+            else:
+                try:
+                    self._sound_queue.put_nowait(alert_level)
+                except Exception:
+                    pass
+        except Exception as ex:
+            logger.debug(f"Audio playback error: {ex}")
 
 
 class AlertManager:

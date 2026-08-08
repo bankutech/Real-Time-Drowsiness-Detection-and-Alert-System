@@ -342,17 +342,18 @@ class DrowsinessDetectorPipeline:
         elif alert_level == 1:  # Soft Amber Warning
             cv2.rectangle(frame, (0, 0), (w, h), (0, 180, 255), 3)
 
-        # 2. Sleek Top Status Pill Banner (Semi-transparent)
+        # 2. Sleek Top Status Pill Banner (Semi-transparent ROI slice blend)
         header_h = 38
-        overlay = frame.copy()
+        top_roi = frame[0:header_h, 0:w]
         bg_color = (25, 25, 25)
         if alert_level == 2:
             bg_color = (0, 0, 150)
         elif alert_level == 1:
             bg_color = (0, 110, 180)
 
-        cv2.rectangle(overlay, (0, 0), (w, header_h), bg_color, -1)
-        cv2.addWeighted(overlay, 0.70, frame, 0.30, 0, frame)
+        overlay_roi = top_roi.copy()
+        cv2.rectangle(overlay_roi, (0, 0), (w, header_h), bg_color, -1)
+        cv2.addWeighted(overlay_roi, 0.70, top_roi, 0.30, 0, top_roi)
 
         # Status Dot & Text
         status_color = (0, 255, 120) if alert_level == 0 else ((0, 215, 255) if alert_level == 1 else (50, 50, 255))

@@ -117,6 +117,7 @@ class BlinkAndYawnTracker:
 
         # PERCLOS rolling buffer (stores 1 if eye closed, 0 if open)
         self.perclos_buffer = collections.deque(maxlen=perclos_window_size)
+        self.perclos_sum = 0
 
         # Blink state tracking
         self.blink_counter = 0
@@ -142,10 +143,13 @@ class BlinkAndYawnTracker:
         """
         Updates temporal buffers with the latest frame measurements.
         """
-        # 1. PERCLOS Update
+        # 1. PERCLOS Update in O(1) Time
         is_closed = 1 if ear < config.PERCLOS_CLOSURE_THRESHOLD else 0
+        if len(self.perclos_buffer) == self.perclos_buffer.maxlen:
+            self.perclos_sum -= self.perclos_buffer[0]
         self.perclos_buffer.append(is_closed)
-        perclos = float(sum(self.perclos_buffer) / max(1, len(self.perclos_buffer)))
+        self.perclos_sum += is_closed
+        perclos = float(self.perclos_sum / max(1, len(self.perclos_buffer)))
 
         # 2. Eye Closure and Blink Duration
         if ear < config.EAR_DROWSY_THRESH:
@@ -217,6 +221,7 @@ class BlinkAndYawnTracker:
 
     def reset(self) -> None:
         self.perclos_buffer.clear()
+        self.perclos_sum = 0
         self.blink_counter = 0
         self.total_blinks = 0
         self.last_blink_duration = 0.18
