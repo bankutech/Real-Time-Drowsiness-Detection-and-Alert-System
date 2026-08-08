@@ -3418,141 +3418,145 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         global global_pipeline, latest_frame_jpeg, latest_telemetry
+        try:
+            if self.path == "/" or self.path == "/index.html":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(HTML_DASHBOARD.encode("utf-8"))
 
-        if self.path == "/" or self.path == "/index.html":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(HTML_DASHBOARD.encode("utf-8"))
+            elif self.path == "/video_feed":
+                self.send_response(200)
+                self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Expires", "0")
+                self.end_headers()
 
-        elif self.path == "/video_feed":
-            self.send_response(200)
-            self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
-            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-            self.send_header("Pragma", "no-cache")
-            self.send_header("Expires", "0")
-            self.end_headers()
+                client_frame_ver = -1
+                while stream_active:
+                    with frame_condition:
+                        if frame_version == client_frame_ver:
+                            frame_condition.wait(timeout=0.06)
+                        if frame_version == client_frame_ver:
+                            continue
+                        current_jpeg = latest_frame_jpeg
+                        client_frame_ver = frame_version
 
-            client_frame_ver = -1
-            while stream_active:
-                with frame_condition:
-                    if frame_version == client_frame_ver:
-                        frame_condition.wait(timeout=0.06)
-                    if frame_version == client_frame_ver:
-                        continue
-                    current_jpeg = latest_frame_jpeg
-                    client_frame_ver = frame_version
+                    if current_jpeg:
+                        try:
+                            self.wfile.write(b"--frame\r\n")
+                            self.send_header("Content-Type", "image/jpeg")
+                            self.send_header("Content-Length", str(len(current_jpeg)))
+                            self.end_headers()
+                            self.wfile.write(current_jpeg)
+                            self.wfile.write(b"\r\n")
+                        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+                            break
+                        except Exception:
+                            break
 
-                if current_jpeg:
+            elif self.path in ("/favicon.ico", "/favicon.svg"):
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml")
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                self.wfile.write(FAVICON_SVG.encode("utf-8"))
+
+            elif self.path == "/api/telemetry":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps(latest_telemetry, cls=NpEncoder).encode("utf-8"))
+
+            elif self.path == "/api/release_camera":
+                global server_async_cam
+                with pipeline_lock:
+                    if server_async_cam:
+                        try:
+                            server_async_cam.release()
+                        except Exception:
+                            pass
+                        server_async_cam = None
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "released"}).encode("utf-8"))
+
+            elif self.path == "/api/calibrate":
+                with pipeline_lock:
+                    if global_pipeline:
+                        global_pipeline.start_calibration()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "calibrating"}).encode("utf-8"))
+
+            elif self.path.startswith("/api/set_model"):
+                from urllib.parse import urlparse, parse_qs
+                query = parse_qs(urlparse(self.path).query)
+                new_model = query.get("model", ["ensemble"])[0]
+                with pipeline_lock:
+                    if global_pipeline:
+                        global_pipeline.primary_model_type = new_model
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok", "active_model": new_model}).encode("utf-8"))
+
+            elif self.path == "/api/leaderboard":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+
+                report_csv = config.EVALUATION_REPORT_PATH
+                rows = []
+                if report_csv.exists():
+                    import pandas as pd
                     try:
-                        self.wfile.write(b"--frame\r\n")
-                        self.send_header("Content-Type", "image/jpeg")
-                        self.send_header("Content-Length", str(len(current_jpeg)))
-                        self.end_headers()
-                        self.wfile.write(current_jpeg)
-                        self.wfile.write(b"\r\n")
-                    except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
-                        break
-                    except Exception:
-                        break
-
-        elif self.path in ("/favicon.ico", "/favicon.svg"):
-            self.send_response(200)
-            self.send_header("Content-Type", "image/svg+xml")
-            self.send_header("Cache-Control", "public, max-age=86400")
-            self.end_headers()
-            self.wfile.write(FAVICON_SVG.encode("utf-8"))
-
-        elif self.path == "/api/telemetry":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps(latest_telemetry, cls=NpEncoder).encode("utf-8"))
-
-        elif self.path == "/api/release_camera":
-            global server_async_cam
-            with pipeline_lock:
-                if server_async_cam:
-                    try:
-                        server_async_cam.release()
+                        df = pd.read_csv(report_csv)
+                        rows = df.to_dict(orient="records")
                     except Exception:
                         pass
-                    server_async_cam = None
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "released"}).encode("utf-8"))
+                self.wfile.write(json.dumps(rows, cls=NpEncoder).encode("utf-8"))
 
-        elif self.path == "/api/calibrate":
-            with pipeline_lock:
-                if global_pipeline:
-                    global_pipeline.start_calibration()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "calibrating"}).encode("utf-8"))
-
-        elif self.path.startswith("/api/set_model"):
-            from urllib.parse import urlparse, parse_qs
-            query = parse_qs(urlparse(self.path).query)
-            new_model = query.get("model", ["ensemble"])[0]
-            with pipeline_lock:
-                if global_pipeline:
-                    global_pipeline.primary_model_type = new_model
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok", "active_model": new_model}).encode("utf-8"))
-
-        elif self.path == "/api/leaderboard":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-
-            report_csv = config.EVALUATION_REPORT_PATH
-            rows = []
-            if report_csv.exists():
-                import pandas as pd
-                try:
-                    df = pd.read_csv(report_csv)
-                    rows = df.to_dict(orient="records")
-                except Exception:
-                    pass
-            self.wfile.write(json.dumps(rows, cls=NpEncoder).encode("utf-8"))
-
-        elif self.path == "/api/onnx_benchmark":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            try:
-                from src.onnx_exporter import export_all_models
-                benchmarks = export_all_models()
-            except Exception as e:
-                benchmarks = [{"error": str(e)}]
-            self.wfile.write(json.dumps(benchmarks, cls=NpEncoder).encode("utf-8"))
-
-        elif self.path.startswith("/outputs/"):
-            rel_path = self.path.lstrip("/")
-            file_path = PROJECT_ROOT / rel_path
-            if file_path.exists() and file_path.suffix.lower() in [".png", ".jpg", ".jpeg"]:
+            elif self.path == "/api/onnx_benchmark":
                 self.send_response(200)
-                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
-                with open(file_path, "rb") as f:
-                    self.wfile.write(f.read())
+                try:
+                    from src.onnx_exporter import export_all_models
+                    benchmarks = export_all_models()
+                except Exception as e:
+                    benchmarks = [{"error": str(e)}]
+                self.wfile.write(json.dumps(benchmarks, cls=NpEncoder).encode("utf-8"))
+
+            elif self.path.startswith("/outputs/"):
+                rel_path = self.path.lstrip("/")
+                file_path = PROJECT_ROOT / rel_path
+                if file_path.exists() and file_path.suffix.lower() in [".png", ".jpg", ".jpeg"]:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "image/png")
+                    self.end_headers()
+                    with open(file_path, "rb") as f:
+                        self.wfile.write(f.read())
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+
             else:
                 self.send_response(404)
                 self.end_headers()
-
-        else:
-            self.send_response(404)
-            self.end_headers()
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+            pass
+        except Exception as e:
+            logger.debug(f"HTTP handler non-fatal notice: {e}")
 
     def do_POST(self):
         global global_pipeline, latest_frame_jpeg, latest_telemetry, last_client_post_time, frame_version
@@ -3593,6 +3597,15 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     """Handles HTTP requests asynchronously in separate threads."""
     daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        """Silently handle client socket disconnections without noisy tracebacks."""
+        import sys
+        exc_type, exc_val, _ = sys.exc_info()
+        if exc_type in (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+            return
+        super().handle_error(request, client_address)
+
 
 
 def run_web_server(port: int = 8080, camera_idx: int = 0, use_simulation: bool = True):
