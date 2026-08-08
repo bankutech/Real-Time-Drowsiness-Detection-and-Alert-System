@@ -49,22 +49,22 @@ class ONNXInferenceEngine:
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Executes class label prediction."""
-        X_float = X.astype(np.float32)
+        X_float = X if X.dtype == np.float32 else X.astype(np.float32, copy=False)
         outputs = self.session.run(None, {self.input_name: X_float})
         return outputs[0]
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Executes class posterior probability inference."""
-        X_float = X.astype(np.float32)
+        X_float = X if X.dtype == np.float32 else X.astype(np.float32, copy=False)
         outputs = self.session.run(None, {self.input_name: X_float})
         # If output includes probability maps or 2D tensors
         if len(outputs) > 1:
             raw_probs = outputs[1]
-            if isinstance(raw_probs, list) and isinstance(raw_probs[0], dict):
-                # Convert list of dicts {class: prob} to 2D numpy array
-                return np.array([[row[c] for c in sorted(row.keys())] for row in raw_probs])
-            elif isinstance(raw_probs, np.ndarray):
+            if isinstance(raw_probs, np.ndarray):
                 return raw_probs
+            elif isinstance(raw_probs, list) and isinstance(raw_probs[0], dict):
+                # Convert list of dicts {class: prob} to 2D numpy array
+                return np.array([[row[c] for c in sorted(row.keys())] for row in raw_probs], dtype=np.float32)
         return outputs[0]
 
 

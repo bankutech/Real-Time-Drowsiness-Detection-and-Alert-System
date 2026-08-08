@@ -46,6 +46,7 @@ latest_frame_jpeg: bytes = b""
 latest_telemetry: Dict[str, Any] = {}
 stream_active = True
 sim_state_idx = 0
+_JPEG_ENCODE_PARAMS = [int(cv2.IMWRITE_JPEG_QUALITY), 75, int(cv2.IMWRITE_JPEG_OPTIMIZE), 1]
 
 
 class AsyncVideoCapture:
@@ -177,7 +178,7 @@ def background_stream_worker(camera_idx: int = 0, use_simulation: bool = True):
             with pipeline_lock:
                 hud_frame, telem = global_pipeline.process_frame(frame)
                 latest_telemetry = telem
-                ret, jpeg = cv2.imencode(".jpg", hud_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
+                ret, jpeg = cv2.imencode(".jpg", hud_frame, _JPEG_ENCODE_PARAMS)
                 if ret:
                     with frame_condition:
                         latest_frame_jpeg = jpeg.tobytes()

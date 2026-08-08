@@ -282,12 +282,12 @@ class DrowsinessHMM:
         # Base case (t=0)
         delta[0] = log_pi + log_B[0]
 
-        # Dynamic programming forward pass
+        # Vectorized dynamic programming forward pass
         for t in range(1, T):
-            for j in range(self.n_states):
-                temp = delta[t - 1] + log_A[:, j]
-                psi[t, j] = int(np.argmax(temp))
-                delta[t, j] = temp[psi[t, j]] + log_B[t, j]
+            # Shape (n_states, n_states): delta[t-1, i] + log_A[i, j]
+            temp = delta[t - 1, :, None] + log_A
+            psi[t] = np.argmax(temp, axis=0)
+            delta[t] = np.max(temp, axis=0) + log_B[t]
 
         # Optimal path backtracking
         best_path = np.zeros(T, dtype=np.int32)

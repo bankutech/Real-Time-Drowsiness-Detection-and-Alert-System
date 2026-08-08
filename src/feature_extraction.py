@@ -30,20 +30,17 @@ def calculate_ear(eye_landmarks: List[Tuple[float, float]]) -> float:
     if len(eye_landmarks) < 6:
         return 0.0
 
-    p1, p2, p3, p4, p5, p6 = eye_landmarks[:6]
+    (x1, y1), (x2, y2), (x3, y3), (x4, y4), (x5, y5), (x6, y6) = eye_landmarks[:6]
 
-    # Vertical eye distances
-    dist_v1 = euclidean_distance_2d(p2, p6)
-    dist_v2 = euclidean_distance_2d(p3, p5)
-
-    # Horizontal eye distance
-    dist_h = euclidean_distance_2d(p1, p4)
+    # Inlined fast Euclidean distances
+    dist_v1 = math.hypot(x2 - x6, y2 - y6)
+    dist_v2 = math.hypot(x3 - x5, y3 - y5)
+    dist_h = math.hypot(x1 - x4, y1 - y4)
 
     if dist_h < 1e-6:
         return 0.0
 
-    ear = (dist_v1 + dist_v2) / (2.0 * dist_h)
-    return float(ear)
+    return (dist_v1 + dist_v2) / (2.0 * dist_h)
 
 
 def calculate_mar(mouth_landmarks: Dict[str, Tuple[float, float]]) -> float:
@@ -52,23 +49,22 @@ def calculate_mar(mouth_landmarks: Dict[str, Tuple[float, float]]) -> float:
     Formula: MAR = (||top_outer - bot_outer|| + ||top_inner - bot_inner||) / (2 * ||left - right||)
     """
     try:
-        p_left = mouth_landmarks["left"]
-        p_right = mouth_landmarks["right"]
-        p_top_lip = mouth_landmarks["top_lip"]
-        p_bot_lip = mouth_landmarks["bot_lip"]
-        p_top_outer = mouth_landmarks["top_outer"]
-        p_bot_outer = mouth_landmarks["bot_outer"]
+        (lx, ly) = mouth_landmarks["left"]
+        (rx, ry) = mouth_landmarks["right"]
+        (tlx, tly) = mouth_landmarks["top_lip"]
+        (blx, bly) = mouth_landmarks["bot_lip"]
+        (tox, toy) = mouth_landmarks["top_outer"]
+        (box, boy) = mouth_landmarks["bot_outer"]
 
-        dist_v1 = euclidean_distance_2d(p_top_lip, p_bot_lip)
-        dist_v2 = euclidean_distance_2d(p_top_outer, p_bot_outer)
-        dist_h = euclidean_distance_2d(p_left, p_right)
+        dist_v1 = math.hypot(tlx - blx, tly - bly)
+        dist_v2 = math.hypot(tox - box, toy - boy)
+        dist_h = math.hypot(lx - rx, ly - ry)
 
         if dist_h < 1e-6:
             return 0.0
 
-        mar = (dist_v1 + dist_v2) / (2.0 * dist_h)
-        return float(mar)
-    except KeyError:
+        return (dist_v1 + dist_v2) / (2.0 * dist_h)
+    except (KeyError, TypeError):
         return 0.0
 
 
@@ -235,6 +231,24 @@ class BlinkAndYawnTracker:
         self.last_time = None
 
 
+_STATIC_MODEL_POINTS_3D = np.ascontiguousarray(config.CANONICAL_3D_FACE_MODEL, dtype=np.float64)
+_STATIC_DIST_COEFFS = np.zeros((4, 1), dtype=np.float64)
+_CAMERA_MATRIX_CACHE: Dict[Tuple[int, int], np.ndarray] = {}
+
+
+def _get_cached_camera_matrix(w: int, h: int) -> np.ndarray:
+    """Retrieves or caches 3x3 pinhole camera intrinsic matrix for given resolution."""
+    key = (w, h)
+    if key not in _CAMERA_MATRIX_CACHE:
+        focal_length = float(w)
+        center = (w / 2.0, h / 2.0)
+        _CAMERA_MATRIX_CACHE[key] = np.array(
+            [[focal_length, 0.0, center[0]], [0.0, focal_length, center[1]], [0.0, 0.0, 1.0]],
+            dtype=np.float64,
+        )
+    return _CAMERA_MATRIX_CACHE[key]
+
+
 def estimate_head_pose(
     landmarks_2d: Dict[int, Tuple[float, float]],
     frame_shape: Tuple[int, int, int],
@@ -244,33 +258,20 @@ def estimate_head_pose(
     using 3D canonical facial model points.
     """
     h, w = frame_shape[:2]
-
-    # Focal length and optical center approximation
-    focal_length = float(w)
-    center = (w / 2.0, h / 2.0)
-    camera_matrix = np.array(
-        [[focal_length, 0, center[0]], [0, focal_length, center[1]], [0, 0, 1]],
-        dtype=np.float64,
-    )
-    dist_coeffs = np.zeros((4, 1), dtype=np.float64)
-
-    # 3D Model Points
-    model_points_3d = np.array(config.CANONICAL_3D_FACE_MODEL, dtype=np.float64)
+    camera_matrix = _get_cached_camera_matrix(w, h)
+    dist_coeffs = _STATIC_DIST_COEFFS
 
     # 2D Image Points
-    image_points_2d = []
-    for lm_id in config.HEAD_POSE_LANDMARK_IDS:
+    image_points_2d = np.empty((len(config.HEAD_POSE_LANDMARK_IDS), 2), dtype=np.float64)
+    for idx, lm_id in enumerate(config.HEAD_POSE_LANDMARK_IDS):
         if lm_id in landmarks_2d:
-            image_points_2d.append(landmarks_2d[lm_id])
+            image_points_2d[idx] = landmarks_2d[lm_id]
         else:
-            # Fallback to center if landmark missing
-            image_points_2d.append((w / 2.0, h / 2.0))
-
-    image_points_2d = np.array(image_points_2d, dtype=np.float64)
+            image_points_2d[idx] = (w / 2.0, h / 2.0)
 
     # Solve PnP
     success, rotation_vec, translation_vec = cv2.solvePnP(
-        model_points_3d,
+        _STATIC_MODEL_POINTS_3D,
         image_points_2d,
         camera_matrix,
         dist_coeffs,
