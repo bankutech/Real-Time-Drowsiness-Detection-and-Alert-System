@@ -35,12 +35,14 @@
 
 ## 🌟 Key Features
 
-- **⚡ Sub-Millisecond Computer Vision Pipeline**: Extracts 478 dense 3D facial landmarks per frame via MediaPipe FaceMesh, computing **Eye Aspect Ratio (EAR)**, **Mouth Aspect Ratio (MAR)**, rolling **PERCLOS (Percentage of Eye Closure)**, and 3D Head Pose (**Pitch, Yaw, Roll** via OpenCV `solvePnP`).
+- **⚡ Sub-Millisecond Computer Vision Pipeline**: Extracts 478 dense 3D facial landmarks per frame via MediaPipe FaceLandmarker, computing **Eye Aspect Ratio (EAR)**, **Mouth Aspect Ratio (MAR)**, rolling **PERCLOS (Percentage of Eye Closure)**, dynamic **EAR Velocity ($\frac{d\text{EAR}}{dt}$)** & **Acceleration ($\frac{d^2\text{EAR}}{dt^2}$)**, and 3D Head Pose (**Pitch, Yaw, Roll** via OpenCV `solvePnP`).
+- **🌙 Adaptive Dynamic Lighting & Eyewear Invariance**: Auto-adjusts for low-light night-driving conditions using adaptive Contrast Limited Adaptive Histogram Equalization (CLAHE) and auto-compensates for eyeglasses and tinted frames.
+- **🚀 Edge ONNX Hardware Acceleration**: INT8 quantized ONNX Runtime engines providing sub-millisecond per-frame inference on automotive edge CPUs and embedded hardware.
 - **🧠 8 Multi-Model Machine Learning Architectures**: Spans Bayesian Logistic Regression (MAP inference), Linear & Non-Linear RBF Support Vector Machines, Cost-Complexity Pruned Decision Trees, Random Forest (OOB error monitoring), AdaBoost (SAMME.R), Soft Voting Aggregators, and Stacking Ensemble meta-learners.
-- **⏱️ Pure NumPy Hidden Markov Model (HMM)**: Temporal Bayesian Forward belief tracking and Viterbi dynamic programming decoding eliminate transient false alarms caused by natural blinks.
+- **⏱️ Pure NumPy Hidden Markov Model (HMM)**: Vectorized temporal Bayesian Forward belief tracking and Viterbi dynamic programming decoding eliminate transient false alarms caused by natural blinks.
 - **🔊 Multi-Tier Audio Tone Synthesizer**: Low-latency ($<10\text{ms}$) pure sine tone audio engine (1000 Hz warning beep, 2500 Hz emergency siren) powered by `pygame.mixer` with seamless cross-platform fallback.
-- **🌐 Real-Time Web Control Center**: Built-in HTTP/MJPEG streaming dashboard (`app.py`) with real-time biometric dials, live fatigue index telemetry, and hot model switching without restarting the video feed.
-- **🧪 100% Automated Phase Test Suite**: 9 modular test suites covering all units from data preprocessing and landmark geometry to web endpoints and live alerting.
+- **🌐 Real-Time Cyber-Cockpit Control Center**: Built-in HTTP/MJPEG streaming dashboard (`app.py`) with real-time biometric dials, live fatigue index telemetry, and hot model switching without restarting the video feed.
+- **🧪 100% Automated Phase Test Suite**: 10 comprehensive modular test suites covering all units from data preprocessing and landmark geometry to ONNX INT8 edge execution and live alerting.
 
 ---
 
@@ -52,13 +54,15 @@
                                                  ▼
                ┌───────────────────────────────────────────────────────────────────┐
                │              Unit 1: Computer Vision & Preprocessing              │
-               │  - MediaPipe 478 Dense Facial Landmarks (FaceMesh)                │
-               │  - Eye Aspect Ratio (EAR) & Blink Rate                            │
+               │  - MediaPipe 478 Dense Facial Landmarks (FaceLandmarker)          │
+               │  - Adaptive Low-Light CLAHE Contrast Enhancement                  │
+               │  - Eye Aspect Ratio (EAR) & 1st/2nd Temporal Derivatives          │
                │  - Mouth Aspect Ratio (MAR) & Yawn Detection                      │
                │  - Eye Closure Percentage (PERCLOS over 60-frame window)          │
                │  - 3D Head Pose Estimation (Pitch, Yaw, Roll via solvePnP)        │
+               │  - Eyewear & Occlusion Detection                                  │
                └─────────────────────────────────┬─────────────────────────────────┘
-                                                 │ (11-D Feature Vector)
+                                                 │ (13-D Feature Vector)
                                                  ▼
                ┌───────────────────────────────────────────────────────────────────┐
                │              Unit 2 & 5: Multi-Model Machine Learning             │
@@ -66,7 +70,7 @@
                │  - Bayesian Logistic Classifier: MAP Posteriors & Uncertainty     │
                │  - Non-Linear SVM (RBF Kernel) & Linear Hyperplane                │
                │  - Decision Tree, Random Forest & AdaBoost Ensembles              │
-               │  - Stacking Ensemble Meta-Learner                                 │
+               │  - Stacking Ensemble Meta-Learner (ONNX INT8 Edge Engine)         │
                └─────────────────────────────────┬─────────────────────────────────┘
                                                  │ (Emission Probability Vector)
                                                  ▼
@@ -74,7 +78,7 @@
                │         Unit 4: Hidden Markov Model (Temporal Filtering)          │
                │  - State Transition Matrix A & Stationary Priors π                │
                │  - Streaming Bayesian Forward Belief Tracking                     │
-               │  - Viterbi Dynamic Programming Decoding                           │
+               │  - Vectorized Viterbi Dynamic Programming Decoding                │
                │  - Multi-Frame Jitter Debouncing & Temporal Smoothing             │
                └─────────────────────────────────┬─────────────────────────────────┘
                                                  │ (Filtered Physiological State)
@@ -290,6 +294,11 @@ Real-Time-Drowsiness-Detection-and-Alert-System/
 ├── models/                    # Serialized model artifacts & binary weights
 │   ├── README.md              # Model artifacts catalog & loading instructions
 │   ├── face_landmarker.task   # MediaPipe 478 3D landmark mesh model
+│   ├── onnx/                  # Edge hardware-accelerated ONNX INT8 models
+│   │   ├── ensemble_stacking.onnx
+│   │   ├── random_forest.onnx
+│   │   ├── bayesian_logistic.onnx
+│   │   └── decision_tree.onnx
 │   ├── scaler.joblib          # Standard feature scaler
 │   ├── fatigue_regressor.joblib# Continuous fatigue linear regressor
 │   ├── bayesian_logistic.joblib# Bayesian logistic classifier (MAP)
@@ -321,6 +330,7 @@ Real-Time-Drowsiness-Detection-and-Alert-System/
 │   ├── preprocessing.py       # Unit 1: Cleaning, imputation, outlier capping
 │   ├── statistics_analysis.py # Unit 1: EDA, statistics & correlation visualizations
 │   ├── feature_extraction.py  # Unit 1: MediaPipe 478 landmark CV extractor
+│   ├── onnx_exporter.py       # INT8 dynamic quantization & ONNX Runtime engine
 │   ├── linear_regression.py   # Unit 2: Continuous fatigue regressor
 │   ├── bayesian_logistic.py   # Unit 2: Bayesian logistic regression (MAP)
 │   ├── svm_classifier.py      # Unit 2: Linear & RBF SVM classifiers
@@ -347,7 +357,8 @@ Real-Time-Drowsiness-Detection-and-Alert-System/
     ├── test_phase6.py         # Unit 5: Trees, Forests & Ensembles
     ├── test_phase7.py         # Phase 7: Unified Model Benchmarks
     ├── test_phase8.py         # Phase 8: Real-Time Detection & Alerting
-    └── test_phase9.py         # Phase 9: CLI Orchestrator & Web Server
+    ├── test_phase9.py         # Phase 9: CLI Orchestrator & Web Server
+    └── test_phase10_advanced.py# Phase 10: 13-D Derivatives, CLAHE, ONNX INT8
 ```
 
 ---
@@ -364,7 +375,7 @@ python tests/run_all_tests.py
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
-All 9 test phases validate numerical precision, zero target leakage, and sub-millisecond per-frame inference speeds.
+All 10 test phases validate numerical precision, zero target leakage, and sub-millisecond per-frame inference speeds.
 
 ---
 
@@ -372,4 +383,4 @@ All 9 test phases validate numerical precision, zero target leakage, and sub-mil
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
-Developed with ❤️ by **[Sagnik Mitra ](https://github.com/bankutech)** **[Aarohi Johari ](https://github.com/Aarohi-S05)** **[Abhigyan Yadav ](https://github.com/AbhigyanYadav47)** **[Nayonika M](https://github.com/Nayo727)**.
+Developed with ❤️ by **[Sagnik Mitra](https://github.com/bankutech)** • **[Aarohi Johari](https://github.com/Aarohi-S05)** • **[Abhigyan Yadav](https://github.com/AbhigyanYadav47)** • **[Nayonika M](https://github.com/Nayo727)**.
