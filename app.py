@@ -641,22 +641,24 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
         .stats-ribbon {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: minmax(220px, 1.35fr) minmax(130px, 0.9fr) minmax(130px, 0.9fr) minmax(140px, 0.9fr) minmax(190px, 1.15fr);
             gap: 1px;
             background: var(--border-subtle);
             max-width: 1640px;
             margin: 0 auto;
+            overflow-x: auto;
         }
 
         .stat-card {
             background: rgba(7, 12, 28, 0.94);
-            padding: 12px 18px;
+            padding: 10px 14px;
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 10px;
             transition: background var(--transition-smooth);
             position: relative;
             overflow: hidden;
+            min-width: 0;
         }
 
         .stat-card:hover {
@@ -679,15 +681,15 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         }
 
         .stat-icon-box {
-            width: 36px;
-            height: 36px;
+            width: 34px;
+            height: 34px;
             border-radius: var(--radius-sm);
             background: rgba(255, 255, 255, 0.04);
             border: 1px solid var(--border-subtle);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.15rem;
+            font-size: 1.05rem;
             color: var(--cyan);
             flex-shrink: 0;
         }
@@ -696,10 +698,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             display: flex;
             flex-direction: column;
             min-width: 0;
+            flex: 1;
         }
 
         .stat-label {
-            font-size: 0.65rem;
+            font-size: 0.62rem;
             color: var(--text-sub);
             text-transform: uppercase;
             letter-spacing: 0.8px;
@@ -711,7 +714,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
         .stat-value {
             font-family: var(--font-mono);
-            font-size: 0.88rem;
+            font-size: 0.82rem;
             font-weight: 700;
             color: var(--text-main);
             white-space: nowrap;
@@ -719,18 +722,22 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             text-overflow: ellipsis;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
         }
 
         .stat-badge-sub {
-            font-size: 0.6rem;
-            padding: 1px 6px;
+            font-size: 0.58rem;
+            padding: 1px 5px;
             border-radius: 4px;
             background: rgba(0, 240, 255, 0.12);
             color: var(--cyan);
             border: 1px solid rgba(0, 240, 255, 0.3);
             font-family: var(--font-body);
             font-weight: 700;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            line-height: 1.2;
         }
 
         /* ==========================================================================
@@ -1865,10 +1872,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         /* ==========================================================================
            17. ADVANCED ULTRA-RESPONSIVE MEDIA QUERIES (MOBILE / TABLET)
            ========================================================================== */
-        @media (max-width: 1120px) {
-            .cockpit-grid { grid-template-columns: 1fr; }
+        @media (max-width: 1280px) {
             .stats-ribbon { grid-template-columns: repeat(3, 1fr); }
             .stat-card:nth-child(4), .stat-card:nth-child(5) { grid-column: span 1; }
+        }
+
+        @media (max-width: 1120px) {
+            .cockpit-grid { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 768px) {
