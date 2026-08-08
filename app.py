@@ -194,6 +194,39 @@ def background_stream_worker(camera_idx: int = 0, use_simulation: bool = True):
         server_async_cam = None
 
 
+FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="fav-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617"/>
+      <stop offset="100%" stop-color="#0b132b"/>
+    </linearGradient>
+    <linearGradient id="fav-neon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f0ff"/>
+      <stop offset="50%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <filter id="fav-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#fav-bg)"/>
+  <rect width="60" height="60" x="2" y="2" rx="12" fill="none" stroke="url(#fav-neon)" stroke-width="2" opacity="0.6"/>
+  <circle cx="32" cy="32" r="23" fill="none" stroke="url(#fav-neon)" stroke-width="1.8" stroke-dasharray="4 3" opacity="0.5"/>
+  <path d="M10 32C16 20 23 15 32 15C41 15 48 20 54 32C48 44 41 49 32 49C23 49 16 44 10 32Z" fill="#060e22" stroke="url(#fav-neon)" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M21 41L26 32H38L43 41" fill="none" stroke="#00f0ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="25" cy="35" r="1.8" fill="#00f0ff"/>
+  <circle cx="39" cy="35" r="1.8" fill="#00f0ff"/>
+  <circle cx="32" cy="27" r="6" fill="#020617" stroke="#00f0ff" stroke-width="2"/>
+  <circle cx="32" cy="27" r="3.2" fill="#00f0ff" filter="url(#fav-glow)"/>
+</svg>"""
+
+FAVICON_DATA_URI = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='fav-bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23020617'/%3E%3Cstop offset='100%25' stop-color='%230b132b'/%3E%3C/linearGradient%3E%3ClinearGradient id='fav-neon' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%2300f0ff'/%3E%3Cstop offset='50%25' stop-color='%2338bdf8'/%3E%3Cstop offset='100%25' stop-color='%236366f1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23fav-bg)'/%3E%3Crect width='60' height='60' x='2' y='2' rx='12' fill='none' stroke='url(%23fav-neon)' stroke-width='2' opacity='0.6'/%3E%3Ccircle cx='32' cy='32' r='23' fill='none' stroke='url(%23fav-neon)' stroke-width='1.8' stroke-dasharray='4 3' opacity='0.5'/%3E%3Cpath d='M10 32C16 20 23 15 32 15C41 15 48 20 54 32C48 44 41 49 32 49C23 49 16 44 10 32Z' fill='%23060e22' stroke='url(%23fav-neon)' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M21 41L26 32H38L43 41' fill='none' stroke='%2300f0ff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='25' cy='35' r='1.8' fill='%2300f0ff'/%3E%3Ccircle cx='39' cy='35' r='1.8' fill='%2300f0ff'/%3E%3Ccircle cx='32' cy='27' r='6' fill='%23020617' stroke='%2300f0ff' stroke-width='2'/%3E%3Ccircle cx='32' cy='27' r='3.2' fill='%2300f0ff'/%3E%3C/svg%3E"
+
+
 HTML_DASHBOARD = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -202,7 +235,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <meta name="theme-color" content="#040714">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Driver Safety AI — Real-Time Edge Intelligence Cockpit</title>
+    <title>Driver Safety AI</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='fav-bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23020617'/%3E%3Cstop offset='100%25' stop-color='%230b132b'/%3E%3C/linearGradient%3E%3ClinearGradient id='fav-neon' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%2300f0ff'/%3E%3Cstop offset='50%25' stop-color='%2338bdf8'/%3E%3Cstop offset='100%25' stop-color='%236366f1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23fav-bg)'/%3E%3Crect width='60' height='60' x='2' y='2' rx='12' fill='none' stroke='url(%23fav-neon)' stroke-width='2' opacity='0.6'/%3E%3Ccircle cx='32' cy='32' r='23' fill='none' stroke='url(%23fav-neon)' stroke-width='1.8' stroke-dasharray='4 3' opacity='0.5'/%3E%3Cpath d='M10 32C16 20 23 15 32 15C41 15 48 20 54 32C48 44 41 49 32 49C23 49 16 44 10 32Z' fill='%23060e22' stroke='url(%23fav-neon)' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M21 41L26 32H38L43 41' fill='none' stroke='%2300f0ff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='25' cy='35' r='1.8' fill='%2300f0ff'/%3E%3Ccircle cx='39' cy='35' r='1.8' fill='%2300f0ff'/%3E%3Ccircle cx='32' cy='27' r='6' fill='%23020617' stroke='%2300f0ff' stroke-width='2'/%3E%3Ccircle cx='32' cy='27' r='3.2' fill='%2300f0ff'/%3E%3C/svg%3E">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='fav-bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23020617'/%3E%3Cstop offset='100%25' stop-color='%230b132b'/%3E%3C/linearGradient%3E%3ClinearGradient id='fav-neon' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%2300f0ff'/%3E%3Cstop offset='50%25' stop-color='%2338bdf8'/%3E%3Cstop offset='100%25' stop-color='%236366f1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23fav-bg)'/%3E%3Crect width='60' height='60' x='2' y='2' rx='12' fill='none' stroke='url(%23fav-neon)' stroke-width='2' opacity='0.6'/%3E%3Ccircle cx='32' cy='32' r='23' fill='none' stroke='url(%23fav-neon)' stroke-width='1.8' stroke-dasharray='4 3' opacity='0.5'/%3E%3Cpath d='M10 32C16 20 23 15 32 15C41 15 48 20 54 32C48 44 41 49 32 49C23 49 16 44 10 32Z' fill='%23060e22' stroke='url(%23fav-neon)' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M21 41L26 32H38L43 41' fill='none' stroke='%2300f0ff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='25' cy='35' r='1.8' fill='%2300f0ff'/%3E%3Ccircle cx='39' cy='35' r='1.8' fill='%2300f0ff'/%3E%3Ccircle cx='32' cy='27' r='6' fill='%23020617' stroke='%2300f0ff' stroke-width='2'/%3E%3Ccircle cx='32' cy='27' r='3.2' fill='%2300f0ff'/%3E%3C/svg%3E">
     <meta name="description" content="Production-grade real-time driver drowsiness detection & alert system with live video telemetry, biometric oscilloscope, multi-model ML inference, and interactive diagnostics.">
     
     <!-- Modern High-Tech Typography -->
@@ -2987,6 +3023,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             document.getElementById('alert-badge').innerText = 'LEVEL ' + lvl + (lvl === 2 ? ' • CRITICAL' : (lvl === 1 ? ' • CAUTION' : ' • NORMAL'));
             if (lvl > 0) playAlertTone(lvl);
 
+            // Dynamic Browser Tab Title with Live State
+            const titlePrefix = lvl === 2 ? '🚨 [CRITICAL ALERT] ' : (lvl === 1 ? '⚠️ [CAUTION] ' : '🟢 ');
+            document.title = titlePrefix + 'Driver Safety AI';
+
             // Diagnostic Status Pills
             const pBase = document.getElementById('pill-baseline');
             if (d.calibrating) {
@@ -3415,6 +3455,13 @@ class StreamingHTTPHandler(BaseHTTPRequestHandler):
                         break
                     except Exception:
                         break
+
+        elif self.path in ("/favicon.ico", "/favicon.svg"):
+            self.send_response(200)
+            self.send_header("Content-Type", "image/svg+xml")
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.end_headers()
+            self.wfile.write(FAVICON_SVG.encode("utf-8"))
 
         elif self.path == "/api/telemetry":
             self.send_response(200)
