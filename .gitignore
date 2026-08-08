@@ -85,3 +85,7 @@ videos/*.mov
 # PDF Reports & Generated Documents
 *.pdf
 outputs/*.pdf
+
+# Raw image dataset caches
+dataset/real_kaggle/
+
