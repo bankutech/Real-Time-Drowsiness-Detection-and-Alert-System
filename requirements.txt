@@ -9,3 +9,6 @@ scipy>=1.10.0
 joblib>=1.3.0
 pygame-ce>=2.5.0
 psutil>=5.9.0
+onnx>=1.15.0
+onnxruntime>=1.16.0
+skl2onnx>=1.16.0

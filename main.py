@@ -301,6 +301,86 @@ def run_evaluation_pipeline() -> None:
     print("=" * 70)
 
 
+def run_real_dataset_validation() -> None:
+    """
+    Loads the already-trained models (fit on the synthetic dataset) and the
+    scaler fit during training, then benchmarks them against the held-out
+    real-world dataset (dataset/real_driver_drowsiness_dataset.csv) that
+    src/download_real_dataset.py produces.
+
+    This is an out-of-distribution generalization check: it never re-fits the
+    scaler or any model on real data, so the resulting numbers show how well
+    models trained purely on synthetic data transfer to real footage.
+    """
+    logger.info("=" * 70)
+    logger.info("REAL-WORLD DATASET GENERALIZATION VALIDATION")
+    logger.info("=" * 70)
+
+    real_csv_path = config.DATASET_DIR / "real_driver_drowsiness_dataset.csv"
+    if not real_csv_path.exists():
+        logger.error(
+            f"Real dataset not found at {real_csv_path}. "
+            f"Run 'python src/download_real_dataset.py' first to generate it."
+        )
+        return
+
+    df_real = pd.read_csv(real_csv_path)
+    missing_cols = [c for c in config.FEATURE_COLUMNS if c not in df_real.columns]
+    if missing_cols:
+        logger.error(f"Real dataset is missing required feature columns: {missing_cols}")
+        return
+
+    # Load the SAME preprocessing artifacts used at training time -- never
+    # re-fit the scaler here, or this stops being an honest OOD test.
+    from src.utils import load_model
+    scaler = load_model("scaler.joblib")
+
+    X_real_raw = df_real[config.FEATURE_COLUMNS].values
+    y_real_labels = df_real[config.TARGET_COLUMN].values
+    y_real = np.array([config.LABEL_TO_ID.get(lbl, 0) for lbl in y_real_labels], dtype=np.int32)
+    X_real = scaler.transform(X_real_raw)
+
+    logger.info(f"Loaded {len(df_real)} real-world samples from {real_csv_path.name}")
+
+    evaluator = ModelEvaluator(output_dir=config.EVAL_OUTPUT_DIR)
+
+    bayes_lr = BayesianLogisticClassifier.load()
+    evaluator.benchmark_model("Bayesian Logistic", bayes_lr.predict, bayes_lr.predict_proba, X_real, y_real, "bayesian_logistic.joblib")
+
+    svm_lin = DrowsinessSVMClassifier.load("svm_linear.joblib")
+    evaluator.benchmark_model("SVM (Linear)", svm_lin.predict, svm_lin.predict_proba, X_real, y_real, "svm_linear.joblib")
+
+    svm_rbf = DrowsinessSVMClassifier.load("svm_rbf.joblib")
+    evaluator.benchmark_model("SVM (RBF)", svm_rbf.predict, svm_rbf.predict_proba, X_real, y_real, "svm_rbf.joblib")
+
+    dt = DrowsinessDecisionTree.load()
+    evaluator.benchmark_model("Decision Tree", dt.predict, dt.predict_proba, X_real, y_real, "decision_tree.joblib")
+
+    rf = DrowsinessRandomForest.load()
+    evaluator.benchmark_model("Random Forest", rf.predict, rf.predict_proba, X_real, y_real, "random_forest.joblib")
+
+    ada = DrowsinessAdaBoost.load()
+    evaluator.benchmark_model("AdaBoost", ada.predict, ada.predict_proba, X_real, y_real, "adaboost.joblib")
+
+    ensemble = DrowsinessEnsemble.load()
+    evaluator.benchmark_model("Stacking Ensemble", ensemble.predict_stacking, ensemble.predict_proba, X_real, y_real, "ensemble_stacking.joblib")
+
+    summary_df = evaluator.generate_summary_table()
+    real_report_path = config.EVAL_OUTPUT_DIR / "real_dataset_validation.csv"
+    summary_df.to_csv(real_report_path, index=False)
+
+    print("\n" + "=" * 70)
+    print("REAL-WORLD GENERALIZATION LEADERBOARD (out-of-distribution test)")
+    print("=" * 70)
+    print(summary_df.to_string(index=False))
+    print("=" * 70)
+    print(f"Saved to: {real_report_path}")
+    print(
+        "Compare these numbers against outputs/evaluation/model_comparison_metrics.csv "
+        "(the synthetic-data test set) to see the generalization gap."
+    )
+
+
 def run_live_detection(camera_idx: int = 0, video_path: Optional[str] = None, enable_audio: bool = True) -> None:
     """Launches real-time OpenCV detection stream on webcam or video file."""
     logger.info("=" * 70)
@@ -439,15 +519,17 @@ def main():
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["train", "evaluate", "live", "demo", "all"],
+        choices=["train", "evaluate", "validate-real", "live", "demo", "all"],
         default="all",
         help=(
             "Execution mode:\n"
-            "  train    : Train all ML models across Units 1-5\n"
-            "  evaluate : Run unified benchmarking and output leaderboard\n"
-            "  live     : Start live detection on webcam or video\n"
-            "  demo     : Run simulated driver drowsiness test with HUD\n"
-            "  all      : Train models, benchmark evaluation, and run demo\n"
+            "  train         : Train all ML models across Units 1-5\n"
+            "  evaluate      : Run unified benchmarking and output leaderboard\n"
+            "  validate-real : Benchmark already-trained models against the\n"
+            "                  real-world dataset (out-of-distribution check)\n"
+            "  live          : Start live detection on webcam or video\n"
+            "  demo          : Run simulated driver drowsiness test with HUD\n"
+            "  all           : Train models, benchmark evaluation, and run demo\n"
         ),
     )
     parser.add_argument("--camera", type=int, default=0, help="Camera index for live detection (default: 0)")
@@ -461,6 +543,8 @@ def main():
         run_training_pipeline()
     elif args.mode == "evaluate":
         run_evaluation_pipeline()
+    elif args.mode == "validate-real":
+        run_real_dataset_validation()
     elif args.mode == "live":
         run_live_detection(camera_idx=args.camera, video_path=args.video, enable_audio=enable_audio)
     elif args.mode == "demo":

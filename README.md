@@ -210,6 +210,7 @@ Open **`http://localhost:8080`** in your browser to access:
 - **Live MJPEG Video Stream**: Low-latency video stream with real-time HUD overlays.
 - **Biometric Gauges**: Animated visual dials for EAR, MAR, PERCLOS, Fatigue Index, and 3D Head Orientation.
 - **Interactive Model Switcher**: Hot-swap active classification backends (Stacking Ensemble $\leftrightarrow$ Random Forest $\leftrightarrow$ Bayesian Logistic $\leftrightarrow$ SVM) on the fly.
+- **Advanced ML Analytics Dashboard (`/analytics`)**: A React-powered visualizer for tracking model leaderboards, biometric feature scatter plots, class distributions, and live real-time API telemetry buffering.
 - **REST Telemetry APIs**: Exposes `/api/telemetry`, `/api/models`, `/api/benchmark`, `/api/alerts`, and `/api/switch_model`.
 
 ---
@@ -287,6 +288,9 @@ Real-Time-Drowsiness-Detection-and-Alert-System/
 ├── requirements.txt           # Python dependency specifications
 ├── README.md                  # System documentation & technical reference
 ├── .gitignore                 # Git ignore rules for clean repository management
+├── templates/                 # Web server HTML UI components
+│   ├── index.html             # Main Cockpit HUD layout
+│   └── analytics.html         # React-powered advanced ML visualizer
 ├── dataset/                   # Raw & cleaned feature datasets
 │   ├── README.md              # Dataset dictionary, feature metadata & distributions
 │   ├── driver_drowsiness_dataset.csv

@@ -151,15 +151,13 @@ def main():
         out_csv = config.DATASET_DIR / "real_driver_drowsiness_dataset.csv"
         df_real.to_csv(out_csv, index=False)
         logger.info(f"Saved real-world dataset to: {out_csv}")
-        
-        # Merge or update cleaned features dataset
-        cleaned_csv = config.DATASET_DIR / "cleaned_features.csv"
-        df_real.to_csv(cleaned_csv, index=False)
-        logger.info(f"Updated {cleaned_csv} with real-world Kaggle samples.")
-        
+
         print("\n" + "=" * 70)
         print(f"SUCCESS: Real Kaggle dataset integrated ({len(df_real)} samples).")
         print(f"File: {out_csv}")
+        print("Note: this file is NOT used to overwrite cleaned_features.csv.")
+        print("Run 'python main.py --mode validate-real' to benchmark the")
+        print("already-trained models against this real-world dataset.")
         print("=" * 70)
     else:
         logger.warning("No samples extracted. Please check dataset paths.")
