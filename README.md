@@ -1,4 +1,4 @@
-# Real-Time-Drowsiness-Detection-and-Alert-System
+# Real Time Drowsiness Detection and Alert System
 
 ## Overview
 <div align="center">
