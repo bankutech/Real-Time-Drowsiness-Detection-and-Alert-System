@@ -1,5 +1,6 @@
-# 🚗 Real-Time Driver Drowsiness Detection and Alert System
+# Real-Time-Drowsiness-Detection-and-Alert-System
 
+## Overview
 <div align="center">
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/downloads/)
@@ -19,7 +20,7 @@
 
 ---
 
-## 📸 Cockpit HUD & Visual Diagnostics
+##  Cockpit HUD & Visual Diagnostics
 
 <div align="center">
 
@@ -33,20 +34,20 @@
 
 ---
 
-## 🌟 Key Features
+##  Key Features
 
-- **⚡ Sub-Millisecond Computer Vision Pipeline**: Extracts 478 dense 3D facial landmarks per frame via MediaPipe FaceLandmarker, computing **Eye Aspect Ratio (EAR)**, **Mouth Aspect Ratio (MAR)**, rolling **PERCLOS (Percentage of Eye Closure)**, dynamic **EAR Velocity ($\frac{d\text{EAR}}{dt}$)** & **Acceleration ($\frac{d^2\text{EAR}}{dt^2}$)**, and 3D Head Pose (**Pitch, Yaw, Roll** via OpenCV `solvePnP`).
-- **🌙 Adaptive Dynamic Lighting & Eyewear Invariance**: Auto-adjusts for low-light night-driving conditions using adaptive Contrast Limited Adaptive Histogram Equalization (CLAHE) and auto-compensates for eyeglasses and tinted frames.
-- **🚀 Edge ONNX Hardware Acceleration**: INT8 quantized ONNX Runtime engines providing sub-millisecond per-frame inference on automotive edge CPUs and embedded hardware.
-- **🧠 8 Multi-Model Machine Learning Architectures**: Spans Bayesian Logistic Regression (MAP inference), Linear & Non-Linear RBF Support Vector Machines, Cost-Complexity Pruned Decision Trees, Random Forest (OOB error monitoring), AdaBoost (SAMME.R), Soft Voting Aggregators, and Stacking Ensemble meta-learners.
+- ** Sub-Millisecond Computer Vision Pipeline**: Extracts 478 dense 3D facial landmarks per frame via MediaPipe FaceLandmarker, computing **Eye Aspect Ratio (EAR)**, **Mouth Aspect Ratio (MAR)**, rolling **PERCLOS (Percentage of Eye Closure)**, dynamic **EAR Velocity ($\frac{d\text{EAR}}{dt}$)** & **Acceleration ($\frac{d^2\text{EAR}}{dt^2}$)**, and 3D Head Pose (**Pitch, Yaw, Roll** via OpenCV `solvePnP`).
+- ** Adaptive Dynamic Lighting & Eyewear Invariance**: Auto-adjusts for low-light night-driving conditions using adaptive Contrast Limited Adaptive Histogram Equalization (CLAHE) and auto-compensates for eyeglasses and tinted frames.
+- ** Edge ONNX Hardware Acceleration**: INT8 quantized ONNX Runtime engines providing sub-millisecond per-frame inference on automotive edge CPUs and embedded hardware.
+- ** 8 Multi-Model Machine Learning Architectures**: Spans Bayesian Logistic Regression (MAP inference), Linear & Non-Linear RBF Support Vector Machines, Cost-Complexity Pruned Decision Trees, Random Forest (OOB error monitoring), AdaBoost (SAMME.R), Soft Voting Aggregators, and Stacking Ensemble meta-learners.
 - **⏱️ Pure NumPy Hidden Markov Model (HMM)**: Vectorized temporal Bayesian Forward belief tracking and Viterbi dynamic programming decoding eliminate transient false alarms caused by natural blinks.
-- **🔊 Multi-Tier Audio Tone Synthesizer**: Low-latency ($<10\text{ms}$) pure sine tone audio engine (1000 Hz warning beep, 2500 Hz emergency siren) powered by `pygame.mixer` with seamless cross-platform fallback.
-- **🌐 Real-Time Cyber-Cockpit Control Center**: Built-in HTTP/MJPEG streaming dashboard (`app.py`) with real-time biometric dials, live fatigue index telemetry, and hot model switching without restarting the video feed.
-- **🧪 100% Automated Phase Test Suite**: 10 comprehensive modular test suites covering all units from data preprocessing and landmark geometry to ONNX INT8 edge execution and live alerting.
+- ** Multi-Tier Audio Tone Synthesizer**: Low-latency ($<10\text{ms}$) pure sine tone audio engine (1000 Hz warning beep, 2500 Hz emergency siren) powered by `pygame.mixer` with seamless cross-platform fallback.
+- ** Real-Time Cyber-Cockpit Control Center**: Built-in HTTP/MJPEG streaming dashboard (`app.py`) with real-time biometric dials, live fatigue index telemetry, and hot model switching without restarting the video feed.
+- ** 100% Automated Phase Test Suite**: 10 comprehensive modular test suites covering all units from data preprocessing and landmark geometry to ONNX INT8 edge execution and live alerting.
 
 ---
 
-## 🏛️ System Architecture
+## ️ System Architecture
 
 ```
                                   [ Video Stream (Webcam / File) ]
@@ -114,7 +115,7 @@ flowchart TD
 
 ---
 
-## 🏆 Unified Multi-Model Benchmark Leaderboard
+##  Unified Multi-Model Benchmark Leaderboard
 
 Evaluated on **801 stratified test samples** (3,200 training samples, $80/20$ split):
 
@@ -141,7 +142,7 @@ Evaluated on **801 stratified test samples** (3,200 training samples, $80/20$ sp
 
 ---
 
-## 📚 Syllabus Alignment & Unit Mapping
+##  Syllabus Alignment & Unit Mapping
 
 This repository systematically implements and demonstrates all **5 core machine learning curriculum units**:
 
@@ -155,7 +156,7 @@ This repository systematically implements and demonstrates all **5 core machine 
 
 ---
 
-## 🧮 Mathematical Foundations
+##  Mathematical Foundations
 
 ### 1. Eye Aspect Ratio (EAR)
 Measures vertical eyelid opening normalized by horizontal eye span:
@@ -182,7 +183,7 @@ where $A$ is the state transition matrix, $\mathbf{O}_t$ is the emission probabi
 
 ---
 
-## 🚨 Alert Escalation Protocol
+##  Alert Escalation Protocol
 
 The system incorporates temporal debouncing to eliminate false positive triggers caused by natural blinks:
 
@@ -198,7 +199,7 @@ The system incorporates temporal debouncing to eliminate false positive triggers
 
 ---
 
-## 🌐 Interactive Web Dashboard Control Center
+##  Interactive Web Dashboard Control Center
 
 Launch the modern, responsive Web Control Center:
 
@@ -215,7 +216,7 @@ Open **`http://localhost:8080`** in your browser to access:
 
 ---
 
-## 📦 Installation & Quickstart
+##  Installation & Quickstart
 
 ### 1. Clone Repository & Setup Virtual Environment
 ```bash
@@ -238,7 +239,7 @@ pip install -r requirements.txt
 
 ---
 
-## 💻 CLI Commands & Execution Modes
+##  CLI Commands & Execution Modes
 
 The master orchestrator [`main.py`](main.py) provides unified CLI commands:
 
@@ -279,7 +280,7 @@ python app.py --port 8080
 
 ---
 
-## 📁 Repository Directory Structure
+##  Repository Directory Structure
 
 ```
 Real-Time-Drowsiness-Detection-and-Alert-System/
@@ -367,7 +368,7 @@ Real-Time-Drowsiness-Detection-and-Alert-System/
 
 ---
 
-## 🧪 Verification & Test Suite
+##  Verification & Test Suite
 
 To run the automated verification suite:
 
@@ -383,8 +384,14 @@ All 10 test phases validate numerical precision, zero target leakage, and sub-mi
 
 ---
 
-## 📄 License & Attribution
+##  License & Attribution
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
-Developed with ❤️ by **[Sagnik Mitra](https://github.com/bankutech)** • **[Aarohi Johari](https://github.com/Aarohi-S05)** • **[Abhigyan Yadav](https://github.com/AbhigyanYadav47)** • **[Nayonika M](https://github.com/Nayo727)**.
+Developed with ️ by **[Sagnik Mitra](https://github.com/bankutech)** • **[Aarohi Johari](https://github.com/Aarohi-S05)** • **[Abhigyan Yadav](https://github.com/AbhigyanYadav47)** • **[Nayonika M](https://github.com/Nayo727)**.
+
+## Getting Started
+Please refer to the source files for specific installation and usage instructions. Ensure that your local environment meets the standard requirements for the associated technologies.
+
+## Project Structure
+This project is organized into standard directories. Key configuration files and primary source code are located in the root directory.
