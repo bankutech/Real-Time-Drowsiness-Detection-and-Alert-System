@@ -1,0 +1,2843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <meta name="theme-color" content="#030508">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Driver Safety AI &bull; Telemetry Cockpit</title>
+    
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23030508'/%3E%3Crect width='60' height='60' x='2' y='2' rx='12' fill='none' stroke='%2300f0ff' stroke-width='1.5' opacity='0.7'/%3E%3Ccircle cx='32' cy='32' r='20' fill='none' stroke='%2300f0ff' stroke-width='1.2' stroke-dasharray='4 3' opacity='0.6'/%3E%3Cpath d='M12 32C18 22 24 18 32 18C40 18 46 22 52 32C46 42 40 46 32 46C24 46 18 42 12 32Z' fill='%23070d18' stroke='%2300f0ff' stroke-width='2' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%2300f0ff'/%3E%3C/svg%3E">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/svg+xml">
+    
+    <!-- Bespoke Automotive & Industrial Typography Pairing -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+
+    <style>
+        /* ==========================================================================
+           1. INDUSTRIAL HARDWARE DESIGN TOKENS & SYSTEM
+           ========================================================================== */
+        :root {
+            --bg-void: #030508;
+            --bg-deep: #060910;
+            --bg-card: rgba(10, 15, 26, 0.76);
+            --bg-card-hover: rgba(14, 21, 37, 0.9);
+            --bg-bezel: rgba(16, 24, 42, 0.65);
+            --bg-subtle: rgba(22, 33, 58, 0.35);
+
+            --border-hairline: rgba(255, 255, 255, 0.07);
+            --border-specular: rgba(255, 255, 255, 0.14);
+            --border-tech: rgba(56, 189, 248, 0.22);
+            --border-active: rgba(0, 240, 255, 0.55);
+
+            --cyan-core: #00f0ff;
+            --cyan-glow: rgba(0, 240, 255, 0.3);
+            --cyan-dim: rgba(0, 240, 255, 0.12);
+            --cyan-ghost: rgba(0, 240, 255, 0.05);
+
+            --emerald-attentive: #10b981;
+            --emerald-glow: rgba(16, 185, 129, 0.35);
+            --emerald-dim: rgba(16, 185, 129, 0.12);
+
+            --amber-caution: #f59e0b;
+            --amber-glow: rgba(245, 158, 11, 0.35);
+            --amber-dim: rgba(245, 158, 11, 0.14);
+
+            --crimson-emergency: #f43f5e;
+            --crimson-glow: rgba(244, 63, 94, 0.5);
+            --crimson-dim: rgba(244, 63, 94, 0.16);
+
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --text-accent: #38bdf8;
+
+            --font-display: 'Syne', sans-serif;
+            --font-tech: 'Space Grotesk', sans-serif;
+            --font-body: 'Plus Jakarta Sans', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            --radius-xs: 4px;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 22px;
+
+            --shadow-hardware: 0 8px 32px -4px rgba(0, 0, 0, 0.75), 0 0 0 1px var(--border-hairline), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            --shadow-bezel: inset 0 2px 6px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.06);
+            --transition-tactile: 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* ==========================================================================
+           2. BASE RESETS, CUSTOM SELECTION & MINIMAL SCROLLBARS
+           ========================================================================== */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            font-size: 16px;
+            background-color: var(--bg-void);
+        }
+
+        body {
+            background-color: var(--bg-void);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            line-height: 1.5;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        ::selection {
+            background: var(--cyan-core);
+            color: #030508;
+        }
+
+        /* Custom Minimal Hardware Scrollbars */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: var(--bg-void); }
+        ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.2); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--cyan-core); box-shadow: 0 0 8px var(--cyan-core); }
+
+        /* Tactile Keyboard Focus Rings */
+        :focus-visible {
+            outline: 2px solid var(--cyan-core);
+            outline-offset: 2px;
+        }
+
+        /* ==========================================================================
+           3. VIEWPORT SVG NOISE GRAIN & AMBIENT COLLIMATED GRID
+           ========================================================================== */
+        .ambient-noise-layer {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            pointer-events: none;
+            opacity: 0.032;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        .ambient-grid-canvas {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background-image: 
+                linear-gradient(to right, rgba(56, 189, 248, 0.035) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(56, 189, 248, 0.035) 1px, transparent 1px);
+            background-size: 54px 54px;
+            mask-image: radial-gradient(ellipse 90% 70% at 50% 30%, black 35%, transparent 85%);
+            -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 30%, black 35%, transparent 85%);
+        }
+
+        .ambient-collimator-glow {
+            position: fixed;
+            top: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 900px;
+            height: 500px;
+            background: radial-gradient(ellipse, rgba(0, 240, 255, 0.08) 0%, rgba(56, 189, 248, 0.02) 45%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+            filter: blur(80px);
+        }
+
+        /* ==========================================================================
+           4. COCKPIT SHELL & TOP COMMAND BRIDGE
+           ========================================================================== */
+        .cockpit-shell {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* Top Command Bridge Header */
+        header.command-bridge {
+            background: rgba(6, 9, 16, 0.88);
+            backdrop-filter: blur(28px) saturate(180%);
+            -webkit-backdrop-filter: blur(28px) saturate(180%);
+            border-bottom: 1px solid var(--border-hairline);
+            padding: 14px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
+        }
+
+        .bridge-brand-cluster {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .telemetry-emblem {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.12), rgba(15, 23, 42, 0.8));
+            border: 1px solid var(--border-tech);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 16px var(--cyan-ghost), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            flex-shrink: 0;
+        }
+
+        .telemetry-emblem svg {
+            width: 24px;
+            height: 24px;
+            stroke: var(--cyan-core);
+            filter: drop-shadow(0 0 6px var(--cyan-glow));
+        }
+
+        .bridge-title-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bridge-headline {
+            font-family: var(--font-display);
+            font-size: 1.12rem;
+            font-weight: 800;
+            letter-spacing: 1.8px;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .bridge-tagline {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .bridge-tagline .pill-accent {
+            color: var(--cyan-core);
+            font-weight: 600;
+        }
+
+        /* Tactile Hardware Switchgear Actions */
+        .bridge-switchgear {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tactile-btn {
+            background: rgba(14, 21, 37, 0.8);
+            border: 1px solid var(--border-specular);
+            color: var(--text-secondary);
+            font-family: var(--font-tech);
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all var(--transition-tactile);
+            box-shadow: var(--shadow-bezel);
+            text-decoration: none;
+            user-select: none;
+        }
+
+        .tactile-btn svg {
+            width: 15px;
+            height: 15px;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+            transition: stroke var(--transition-tactile);
+        }
+
+        .tactile-btn:hover {
+            color: var(--text-primary);
+            border-color: var(--border-tech);
+            background: rgba(20, 31, 56, 0.95);
+            transform: translateY(-1px);
+        }
+
+        .tactile-btn:active {
+            transform: translateY(1px);
+        }
+
+        .tactile-btn.btn-cyan {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(14, 21, 37, 0.9));
+            border-color: var(--cyan-core);
+            color: var(--cyan-core);
+            box-shadow: 0 0 16px var(--cyan-dim), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .tactile-btn.btn-cyan:hover {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.25), rgba(20, 31, 56, 0.95));
+            box-shadow: 0 0 24px var(--cyan-glow);
+        }
+
+        .tactile-btn.active-latch {
+            border-color: var(--emerald-attentive);
+            color: var(--emerald-attentive);
+            background: var(--emerald-dim);
+        }
+
+        /* Live Optical Heartbeat LED */
+        .live-telemetry-led {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--emerald-attentive);
+            background: var(--emerald-dim);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            padding: 6px 12px;
+            border-radius: var(--radius-xs);
+            letter-spacing: 1px;
+        }
+
+        .led-pulse-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--emerald-attentive);
+            box-shadow: 0 0 10px var(--emerald-attentive);
+            animation: ledBlink 1.4s infinite ease-in-out;
+        }
+
+        @keyframes ledBlink {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+
+        /* ==========================================================================
+           5. PRECISION TELEMETRY STRIP (MISSION STATS)
+           ========================================================================== */
+        .telemetry-strip-wrapper {
+            background: rgba(4, 7, 12, 0.95);
+            border-bottom: 1px solid var(--border-hairline);
+            padding: 8px 32px;
+        }
+
+        .telemetry-strip-grid {
+            max-width: 1680px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+        }
+
+        .telemetry-node {
+            background: rgba(10, 15, 26, 0.6);
+            border: 1px solid var(--border-hairline);
+            border-radius: var(--radius-sm);
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: border-color var(--transition-tactile);
+        }
+
+        .telemetry-node:hover {
+            border-color: var(--border-specular);
+        }
+
+        .node-icon-box {
+            width: 30px;
+            height: 30px;
+            border-radius: var(--radius-xs);
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border-hairline);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .node-icon-box svg {
+            width: 15px;
+            height: 15px;
+            stroke: var(--text-accent);
+            fill: none;
+            stroke-width: 2;
+        }
+
+        .node-content {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .node-meta-label {
+            font-family: var(--font-mono);
+            font-size: 0.62rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .node-value-readout {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .node-badge-int8 {
+            font-size: 0.6rem;
+            padding: 1px 5px;
+            border-radius: 3px;
+            background: var(--cyan-dim);
+            color: var(--cyan-core);
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            margin-left: 4px;
+        }
+
+        /* ==========================================================================
+           6. TAB NAVIGATION CHANNELS
+           ========================================================================== */
+        .channel-nav-bar {
+            background: rgba(5, 8, 14, 0.85);
+            border-bottom: 1px solid var(--border-hairline);
+            padding: 8px 32px;
+        }
+
+        .channel-nav-inner {
+            max-width: 1680px;
+            margin: 0 auto;
+            display: flex;
+            gap: 10px;
+        }
+
+        .channel-tab-pill {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-muted);
+            font-family: var(--font-tech);
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 9px 20px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all var(--transition-tactile);
+            user-select: none;
+        }
+
+        .channel-tab-pill svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        .channel-tab-pill:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .channel-tab-pill.active {
+            color: var(--cyan-core);
+            background: rgba(0, 240, 255, 0.07);
+            border-color: rgba(0, 240, 255, 0.35);
+            box-shadow: 0 0 18px var(--cyan-ghost), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .channel-tab-pill .pill-counter {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            padding: 2px 7px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.07);
+            color: var(--text-muted);
+        }
+
+        .channel-tab-pill.active .pill-counter {
+            background: var(--cyan-core);
+            color: #030508;
+            font-weight: 700;
+        }
+
+        /* ==========================================================================
+           7. MAIN COCKPIT VIEWPORT GRID
+           ========================================================================== */
+        main.cockpit-main {
+            padding: 28px 32px;
+            flex: 1;
+            max-width: 1680px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .tab-channel-pane {
+            display: none;
+        }
+
+        .tab-channel-pane.active {
+            display: block;
+            animation: paneFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes paneFadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ==========================================================================
+           8. TIERED ALERT BANNER BEACON
+           ========================================================================== */
+        .cockpit-alert-beacon {
+            border-radius: var(--radius-md);
+            padding: 16px 24px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: var(--font-tech);
+            font-weight: 700;
+            font-size: 0.9rem;
+            letter-spacing: 1.5px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(16px);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .cockpit-alert-beacon::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 5px;
+            background: currentColor;
+        }
+
+        .cockpit-alert-beacon.alert-level-0 {
+            background: var(--emerald-dim);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            color: var(--emerald-attentive);
+            box-shadow: 0 0 24px rgba(16, 185, 129, 0.12);
+        }
+
+        .cockpit-alert-beacon.alert-level-1 {
+            background: var(--amber-dim);
+            border: 1px solid rgba(245, 158, 11, 0.55);
+            color: var(--amber-caution);
+            box-shadow: 0 0 32px rgba(245, 158, 11, 0.22);
+            animation: pulseCaution 1.5s infinite ease-in-out;
+        }
+
+        .cockpit-alert-beacon.alert-level-2 {
+            background: var(--crimson-dim);
+            border: 1px solid rgba(244, 63, 94, 0.75);
+            color: var(--crimson-emergency);
+            box-shadow: 0 0 45px rgba(244, 63, 94, 0.45);
+            animation: pulseEmergency 0.7s infinite alternate;
+        }
+
+        @keyframes pulseCaution {
+            0%, 100% { opacity: 0.95; }
+            50% { opacity: 1; transform: scale(1.002); }
+        }
+
+        @keyframes pulseEmergency {
+            0% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0.88; transform: scale(1.006); }
+        }
+
+        .beacon-left-group {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .beacon-status-led {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        .beacon-badge {
+            font-family: var(--font-mono);
+            font-size: 0.74rem;
+            padding: 4px 12px;
+            border-radius: var(--radius-xs);
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid currentColor;
+            letter-spacing: 1px;
+        }
+
+        /* ==========================================================================
+           9. DUAL-COLUMN INSTRUMENT MATRIX
+           ========================================================================== */
+        .instrument-matrix {
+            display: grid;
+            grid-template-columns: 1.8fr 1.2fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .instrument-pod {
+            background: var(--bg-card);
+            border: 1px solid var(--border-hairline);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: var(--shadow-hardware);
+            transition: border-color var(--transition-tactile);
+            position: relative;
+        }
+
+        .instrument-pod:hover {
+            border-color: var(--border-specular);
+        }
+
+        .pod-header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-hairline);
+        }
+
+        .pod-title {
+            font-family: var(--font-display);
+            font-size: 0.88rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            color: var(--cyan-core);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .pod-title svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        .pod-badge {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.04);
+            padding: 3px 10px;
+            border-radius: var(--radius-xs);
+            border: 1px solid var(--border-hairline);
+        }
+
+        /* ==========================================================================
+           10. COLLIMATED HUD VIDEO VIEWPORT
+           ========================================================================== */
+        .hud-video-chassis {
+            position: relative;
+            width: 100%;
+            background: #010307;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            border: 1px solid rgba(56, 189, 248, 0.18);
+            aspect-ratio: 16 / 10;
+            max-height: 520px;
+            min-height: 240px;
+            box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.9);
+        }
+
+        .hud-video-chassis img, .hud-video-chassis video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* Collimated Precision Corner Brackets */
+        .hud-reticle-corner {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .reticle-tl { top: 10px; left: 10px; border-top: 2px solid var(--cyan-core); border-left: 2px solid var(--cyan-core); }
+        .reticle-tr { top: 10px; right: 10px; border-top: 2px solid var(--cyan-core); border-right: 2px solid var(--cyan-core); }
+        .reticle-bl { bottom: 10px; left: 10px; border-bottom: 2px solid var(--border-tech); border-left: 2px solid var(--border-tech); }
+        .reticle-br { bottom: 10px; right: 10px; border-bottom: 2px solid var(--border-tech); border-right: 2px solid var(--border-tech); }
+
+        /* Optical Targeting Crosshairs */
+        .hud-optic-crosshair {
+            position: absolute;
+            inset: 0;
+            z-index: 3;
+            pointer-events: none;
+            background: 
+                linear-gradient(to right, transparent 49.5%, rgba(0, 240, 255, 0.05) 50%, transparent 50.5%),
+                linear-gradient(to bottom, transparent 49.5%, rgba(0, 240, 255, 0.05) 50%, transparent 50.5%);
+        }
+
+        /* Diagnostic Telemetry Badges Grid */
+        .diagnostic-pills-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .diagnostic-pill-box {
+            background: rgba(8, 12, 22, 0.85);
+            border: 1px solid var(--border-hairline);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            transition: all var(--transition-tactile);
+        }
+
+        .diagnostic-pill-box:hover {
+            border-color: var(--border-specular);
+            background: rgba(12, 18, 34, 0.95);
+        }
+
+        .pill-meta-tag {
+            font-family: var(--font-mono);
+            font-size: 0.62rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .pill-status-val {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pill-status-val.state-ok { color: var(--emerald-attentive); }
+        .pill-status-val.state-warn { color: var(--amber-caution); }
+        .pill-status-val.state-crit { color: var(--crimson-emergency); }
+
+        /* ==========================================================================
+           11. BIOMETRIC OSCILLOSCOPE CHASSIS (PHOSPHOR WAVEFORM)
+           ========================================================================== */
+        .oscilloscope-chassis {
+            margin-top: 18px;
+            background: rgba(4, 7, 14, 0.9);
+            border: 1px solid var(--border-hairline);
+            border-radius: var(--radius-md);
+            padding: 14px 18px;
+            position: relative;
+        }
+
+        .osc-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .osc-heading {
+            font-family: var(--font-tech);
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .osc-heading svg {
+            width: 14px;
+            height: 14px;
+            stroke: var(--cyan-core);
+            fill: none;
+            stroke-width: 2;
+        }
+
+        .osc-channel-legend {
+            display: flex;
+            gap: 14px;
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+        }
+
+        .channel-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .channel-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+
+        .osc-screen-canvas {
+            width: 100%;
+            height: 95px;
+            display: block;
+            border-radius: var(--radius-xs);
+            background: rgba(2, 4, 10, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        /* ==========================================================================
+           12. PHYSICAL BIOMETRIC SENSOR DIALS & GAUGES
+           ========================================================================== */
+        .biometric-sensor-gauge {
+            margin-bottom: 18px;
+        }
+
+        .gauge-metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            margin-bottom: 6px;
+        }
+
+        .gauge-label-text {
+            font-family: var(--font-tech);
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .gauge-label-text svg {
+            width: 15px;
+            height: 15px;
+            stroke: var(--text-accent);
+            fill: none;
+            stroke-width: 2;
+        }
+
+        .gauge-readout-num {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: var(--text-primary);
+            font-size: 0.88rem;
+        }
+
+        .gauge-recessed-track {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: var(--radius-xs);
+            height: 8px;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid var(--border-hairline);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .gauge-active-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease;
+            position: relative;
+            background: var(--emerald-attentive);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+        }
+
+        .gauge-active-fill.fill-warn {
+            background: var(--amber-caution);
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+        }
+
+        .gauge-active-fill.fill-crit {
+            background: var(--crimson-emergency);
+            box-shadow: 0 0 12px rgba(244, 63, 94, 0.5);
+        }
+
+        .gauge-threshold-pin {
+            position: absolute;
+            top: -2px; bottom: -2px;
+            width: 2px;
+            background: #ffffff;
+            z-index: 3;
+            box-shadow: 0 0 6px #ffffff;
+        }
+
+        .gauge-scale-legend {
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 0.62rem;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+
+        .instrument-divider {
+            border: none;
+            border-top: 1px solid var(--border-hairline);
+            margin: 18px 0;
+        }
+
+        /* 3D Head Pose Gimbal Dial */
+        .gimbal-pose-station {
+            background: rgba(8, 12, 22, 0.7);
+            border: 1px solid var(--border-hairline);
+            border-radius: var(--radius-md);
+            padding: 14px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .gimbal-telemetry-text {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .gimbal-label {
+            font-family: var(--font-mono);
+            font-size: 0.64rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .gimbal-direction-status {
+            font-family: var(--font-tech);
+            font-weight: 700;
+            font-size: 0.88rem;
+            color: var(--emerald-attentive);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .gimbal-numeric-angles {
+            font-family: var(--font-mono);
+            font-size: 0.74rem;
+            color: var(--text-secondary);
+        }
+
+        .gimbal-dial-orb {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(14, 21, 37, 0.95);
+            border: 1.5px solid var(--border-tech);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            flex-shrink: 0;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.8), 0 0 14px var(--cyan-ghost);
+        }
+
+        .gimbal-needle {
+            width: 3px;
+            height: 24px;
+            background: var(--cyan-core);
+            border-radius: 2px;
+            box-shadow: 0 0 10px var(--cyan-core);
+            transform-origin: center;
+            transition: transform 0.2s ease;
+        }
+
+        /* Model Switcher Box */
+        .model-switcher-panel {
+            margin-top: 16px;
+        }
+
+        .switcher-meta-label {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .model-select-hardware {
+            background: rgba(10, 16, 28, 0.95);
+            border: 1px solid var(--border-specular);
+            color: var(--text-primary);
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-tech);
+            font-size: 0.84rem;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            width: 100%;
+            transition: all var(--transition-tactile);
+            box-shadow: var(--shadow-bezel);
+        }
+
+        .model-select-hardware:focus {
+            border-color: var(--cyan-core);
+            box-shadow: 0 0 16px var(--cyan-dim);
+        }
+
+        .model-select-hardware option {
+            background: #080d18;
+            color: #fff;
+            padding: 8px;
+        }
+
+        /* Simulation Controls Matrix */
+        .simulation-switch-array {
+            margin-top: 16px;
+            background: rgba(8, 12, 22, 0.6);
+            border: 1px solid var(--border-hairline);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+        }
+
+        .sim-header-label {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sim-btn-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+
+        .sim-trigger-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-hairline);
+            color: var(--text-muted);
+            padding: 7px 10px;
+            border-radius: var(--radius-xs);
+            font-family: var(--font-tech);
+            font-size: 0.72rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-tactile);
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .sim-trigger-btn:hover {
+            border-color: var(--border-tech);
+            color: var(--text-primary);
+            background: rgba(56, 189, 248, 0.1);
+        }
+
+        /* ==========================================================================
+           13. MULTI-MODEL LEADERBOARD & DIAGNOSTIC ARTIFACTS
+           ========================================================================== */
+        .results-command-hero {
+            background: var(--bg-card);
+            border: 1px solid var(--border-hairline);
+            border-radius: var(--radius-lg);
+            padding: 28px 32px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(20px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .results-hero-heading {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            text-transform: uppercase;
+        }
+
+        .results-hero-paragraph {
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            line-height: 1.6;
+            max-width: 1200px;
+        }
+
+        .leaderboard-chassis {
+            background: var(--bg-card);
+            border: 1px solid var(--border-hairline);
+            border-radius: var(--radius-lg);
+            backdrop-filter: blur(20px);
+            overflow: hidden;
+            margin-bottom: 32px;
+            box-shadow: var(--shadow-hardware);
+        }
+
+        .leaderboard-action-bar {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-hairline);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .lb-heading-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .lb-title-text {
+            font-family: var(--font-tech);
+            font-size: 0.88rem;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: var(--text-primary);
+        }
+
+        .lb-search-input {
+            background: rgba(8, 12, 22, 0.9);
+            border: 1px solid var(--border-hairline);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.76rem;
+            padding: 7px 14px;
+            border-radius: var(--radius-xs);
+            outline: none;
+            width: 220px;
+            transition: all var(--transition-tactile);
+        }
+
+        .lb-search-input:focus {
+            border-color: var(--cyan-core);
+            box-shadow: 0 0 12px var(--cyan-dim);
+        }
+
+        .table-responsive-box {
+            overflow-x: auto;
+            max-width: 100%;
+        }
+
+        table.telemetry-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+            text-align: left;
+        }
+
+        table.telemetry-table th {
+            background: rgba(6, 10, 18, 0.9);
+            font-family: var(--font-tech);
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 12px 18px;
+            border-bottom: 1px solid var(--border-hairline);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        table.telemetry-table th:hover {
+            color: var(--cyan-core);
+        }
+
+        table.telemetry-table td {
+            padding: 14px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        table.telemetry-table tr:hover td {
+            background: rgba(0, 240, 255, 0.03);
+            color: var(--text-primary);
+        }
+
+        .rank-badge-metal {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 0.7rem;
+            padding: 2px 7px;
+            border-radius: var(--radius-xs);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-muted);
+        }
+
+        .rank-gold { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); }
+        .rank-silver { background: rgba(148, 163, 184, 0.18); color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.35); }
+        .rank-bronze { background: rgba(217, 119, 6, 0.18); color: #f59e0b; border: 1px solid rgba(217, 119, 6, 0.35); }
+
+        .metric-glow-100 {
+            color: var(--emerald-attentive) !important;
+            font-weight: 700;
+        }
+
+        /* Category Filter Chips */
+        .artifact-filter-nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .artifact-chip {
+            background: rgba(14, 21, 37, 0.7);
+            border: 1px solid var(--border-hairline);
+            color: var(--text-muted);
+            font-family: var(--font-tech);
+            font-size: 0.76rem;
+            font-weight: 600;
+            padding: 7px 16px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--transition-tactile);
+            user-select: none;
+        }
+
+        .artifact-chip:hover {
+            color: var(--text-primary);
+            border-color: var(--border-specular);
+        }
+
+        .artifact-chip.active {
+            color: var(--cyan-core);
+            background: rgba(0, 240, 255, 0.08);
+            border-color: rgba(0, 240, 255, 0.4);
+            box-shadow: 0 0 16px var(--cyan-ghost);
+        }
+
+        /* Gallery Sections */
+        .artifact-unit-section {
+            margin-bottom: 32px;
+        }
+
+        .artifact-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(10, 16, 28, 0.65);
+            border: 1px solid var(--border-hairline);
+            border-radius: var(--radius-md);
+            padding: 12px 20px;
+            margin-bottom: 16px;
+            cursor: pointer;
+            transition: all var(--transition-tactile);
+        }
+
+        .artifact-section-header:hover {
+            border-color: var(--border-specular);
+        }
+
+        .section-headline-text {
+            font-family: var(--font-display);
+            font-size: 0.88rem;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            color: var(--text-primary);
+            text-transform: uppercase;
+        }
+
+        .gallery-matrix-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 18px;
+        }
+
+        .diagnostic-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-hairline);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            cursor: pointer;
+            transition: all var(--transition-tactile);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .diagnostic-card:hover {
+            border-color: var(--border-tech);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+
+        .card-preview-viewport {
+            width: 100%;
+            height: 190px;
+            background: #020408;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .card-preview-viewport img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .diagnostic-card:hover .card-preview-viewport img {
+            transform: scale(1.03);
+        }
+
+        .card-zoom-indicator {
+            position: absolute;
+            bottom: 8px; right: 8px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--border-hairline);
+            color: var(--cyan-core);
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            padding: 3px 8px;
+            border-radius: var(--radius-xs);
+        }
+
+        .diagnostic-card-body {
+            padding: 14px 16px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .card-title-text {
+            font-family: var(--font-tech);
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .card-desc-text {
+            font-size: 0.74rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* ==========================================================================
+           14. HIGH-RESOLUTION LIGHTBOX MODAL
+           ========================================================================== */
+        .modal-lightbox-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            background: rgba(2, 4, 8, 0.92);
+            backdrop-filter: blur(24px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .modal-lightbox-backdrop.active {
+            display: flex;
+        }
+
+        .lightbox-window-chassis {
+            position: relative;
+            max-width: 92vw;
+            max-height: 90vh;
+            background: rgba(10, 16, 28, 0.95);
+            border: 1px solid var(--border-tech);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+        }
+
+        .lightbox-main-graphic {
+            max-height: 75vh;
+            max-width: 100%;
+            object-fit: contain;
+            display: block;
+            background: #010205;
+        }
+
+        .lightbox-footer-controls {
+            padding: 14px 24px;
+            border-top: 1px solid var(--border-hairline);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(6, 10, 18, 0.95);
+        }
+
+        .lightbox-caption-label {
+            font-family: var(--font-tech);
+            font-size: 0.84rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .lightbox-dismiss-x {
+            position: absolute;
+            top: 12px; right: 12px;
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--border-specular);
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: all var(--transition-tactile);
+            z-index: 10;
+        }
+
+        .lightbox-dismiss-x:hover {
+            border-color: var(--crimson-emergency);
+            color: var(--crimson-emergency);
+        }
+
+        .lightbox-stepper-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.75);
+            border: 1px solid var(--border-specular);
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            transition: all var(--transition-tactile);
+            z-index: 10;
+        }
+
+        .lightbox-stepper-btn:hover {
+            border-color: var(--cyan-core);
+            color: var(--cyan-core);
+            background: rgba(0, 240, 255, 0.15);
+        }
+
+        .stepper-prev { left: 14px; }
+        .stepper-next { right: 14px; }
+
+        /* ==========================================================================
+           15. FLOATING TACTILE TOAST STACK
+           ========================================================================== */
+        .toast-dock-station {
+            position: fixed;
+            bottom: 24px;
+            right: 28px;
+            z-index: 10001;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .tactile-toast-pill {
+            background: rgba(8, 14, 26, 0.95);
+            border: 1px solid var(--border-specular);
+            color: var(--text-primary);
+            padding: 12px 18px;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-tech);
+            font-size: 0.8rem;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            backdrop-filter: blur(16px);
+            animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            pointer-events: auto;
+        }
+
+        @keyframes toastSlideIn {
+            from { transform: translateX(40px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .tactile-toast-pill.toast-success { border-color: var(--emerald-attentive); color: var(--emerald-attentive); }
+        .tactile-toast-pill.toast-warn { border-color: var(--amber-caution); color: var(--amber-caution); }
+        .tactile-toast-pill.toast-info { border-color: var(--cyan-core); color: var(--cyan-core); }
+
+        /* ==========================================================================
+           16. COCKPIT COMMAND FOOTER
+           ========================================================================== */
+        footer.cockpit-footer {
+            background: rgba(5, 8, 14, 0.9);
+            border-top: 1px solid var(--border-hairline);
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            backdrop-filter: blur(16px);
+        }
+
+        footer.cockpit-footer a { color: var(--cyan-core); text-decoration: none; font-weight: 600; }
+        footer.cockpit-footer a:hover { text-decoration: underline; }
+
+        /* ==========================================================================
+           17. RESPONSIVE BREAKPOINTS (MOBILE & TABLET INSTRUMENTS)
+           ========================================================================== */
+        @media (max-width: 1200px) {
+            .instrument-matrix { grid-template-columns: 1fr; }
+            .telemetry-strip-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            header.command-bridge {
+                padding: 12px 16px;
+                flex-direction: column;
+                gap: 12px;
+                align-items: stretch;
+            }
+            .bridge-brand-cluster { justify-content: space-between; }
+            .bridge-switchgear {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+            .tactile-btn {
+                padding: 8px 10px;
+                font-size: 0.72rem;
+                justify-content: center;
+            }
+            .telemetry-strip-wrapper { padding: 6px 16px; }
+            .telemetry-strip-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+            .channel-nav-bar { padding: 6px 16px; }
+            .channel-tab-pill { flex: 1; justify-content: center; padding: 8px 12px; font-size: 0.78rem; }
+            main.cockpit-main { padding: 16px 14px; }
+            .instrument-pod { padding: 16px 14px; }
+            .diagnostic-pills-row { grid-template-columns: repeat(2, 1fr); }
+            .sim-btn-grid { grid-template-columns: repeat(2, 1fr); }
+            .gallery-matrix-grid { grid-template-columns: 1fr; }
+            footer.cockpit-footer {
+                flex-direction: column;
+                gap: 8px;
+                text-align: center;
+                padding: 14px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Viewport Noise Texture Layer & Ambient Optics -->
+    <div class="ambient-noise-layer"></div>
+    <div class="ambient-grid-canvas"></div>
+    <div class="ambient-collimator-glow"></div>
+
+    <div class="cockpit-shell">
+
+        <!-- ===== TOP COMMAND BRIDGE ===== -->
+        <header class="command-bridge">
+            <div class="bridge-brand-cluster">
+                <div class="telemetry-emblem" title="Edge Biometric Vision Cockpit">
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" stroke-width="1.5" stroke-dasharray="3 2" opacity="0.6"/>
+                        <path d="M2 12C5 7 8 5 12 5C16 5 19 7 22 12C19 17 16 19 12 19C8 19 5 17 2 12Z" stroke-width="1.8"/>
+                        <circle cx="12" cy="12" r="3" fill="var(--cyan-core)"/>
+                    </svg>
+                </div>
+                <div class="bridge-title-group">
+                    <h1 class="bridge-headline">DRIVER SAFETY AI</h1>
+                    <span class="bridge-tagline">Real-Time In-Cabin Biometrics &bull; <span class="pill-accent">INT8 ONNX Engine</span></span>
+                </div>
+            </div>
+
+            <div class="bridge-switchgear">
+                <a href="/analytics" target="_blank" class="tactile-btn" title="Open Advanced React Analytics">
+                    <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                    <span>Analytics</span>
+                </a>
+                <button id="btn-webcam" class="tactile-btn" onclick="toggleBrowserWebcam()">
+                    <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    <span id="cam-label">My Webcam</span>
+                </button>
+                <button id="btn-mesh" class="tactile-btn" onclick="toggleMeshOverlay()">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <span id="mesh-label">HUD Mesh: OFF</span>
+                </button>
+                <button id="btn-sound" class="tactile-btn" onclick="toggleAudio()">
+                    <svg id="sound-icon-svg" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                    <span id="sound-label">Audio: ON</span>
+                </button>
+                <button class="tactile-btn btn-cyan" onclick="triggerCalibration()">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                    <span>Calibrate</span>
+                </button>
+                <div class="live-telemetry-led">
+                    <div class="led-pulse-dot"></div>
+                    <span>LIVE &bull; 60 FPS</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- ===== MISSION TELEMETRY STRIP ===== -->
+        <div class="telemetry-strip-wrapper">
+            <div class="telemetry-strip-grid">
+                <div class="telemetry-node">
+                    <div class="node-icon-box">
+                        <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    </div>
+                    <div class="node-content">
+                        <span class="node-meta-label">Active Inference Engine</span>
+                        <span id="stat-model" class="node-value-readout">Stacking Ensemble <span class="node-badge-int8">INT8</span></span>
+                    </div>
+                </div>
+                <div class="telemetry-node">
+                    <div class="node-icon-box">
+                        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    </div>
+                    <div class="node-content">
+                        <span class="node-meta-label">Vision Throughput</span>
+                        <span id="stat-fps" class="node-value-readout">-- FPS</span>
+                    </div>
+                </div>
+                <div class="telemetry-node">
+                    <div class="node-icon-box">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </div>
+                    <div class="node-content">
+                        <span class="node-meta-label">Inference Latency</span>
+                        <span id="stat-latency" class="node-value-readout">-- ms</span>
+                    </div>
+                </div>
+                <div class="telemetry-node">
+                    <div class="node-icon-box">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    </div>
+                    <div class="node-content">
+                        <span class="node-meta-label">Mission Uptime</span>
+                        <span id="stat-uptime" class="node-value-readout">00:00:00</span>
+                    </div>
+                </div>
+                <div class="telemetry-node">
+                    <div class="node-icon-box">
+                        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/></svg>
+                    </div>
+                    <div class="node-content">
+                        <span class="node-meta-label">Temporal Debounce</span>
+                        <span class="node-value-readout" style="color:var(--emerald-attentive);">HMM Viterbi Active</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== CHANNEL TABS ===== -->
+        <div class="channel-nav-bar">
+            <div class="channel-nav-inner">
+                <button class="channel-tab-pill active" onclick="switchChannel('live-tab', this)">
+                    <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+                    <span>Live Cockpit Telemetry</span>
+                </button>
+                <button class="channel-tab-pill" onclick="switchChannel('results-tab', this)">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    <span>Multi-Model Benchmark &amp; Unit Artifacts</span>
+                    <span class="pill-counter">18 Plots</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ===== MAIN VIEWPORT ===== -->
+        <main class="cockpit-main">
+
+            <!-- CHANNEL 1: LIVE DETECTION COCKPIT -->
+            <div id="live-tab" class="tab-channel-pane active">
+
+                <!-- Alert Beacon Banner -->
+                <div id="alert-banner" class="cockpit-alert-beacon alert-level-0">
+                    <div class="beacon-left-group">
+                        <div class="beacon-status-led"></div>
+                        <span id="alert-text">DRIVER STATUS: VIGILANT & ATTENTIVE</span>
+                    </div>
+                    <span id="alert-badge" class="beacon-badge">LEVEL 0 &bull; NORMAL</span>
+                </div>
+
+                <div class="instrument-matrix">
+
+                    <!-- Left: Collimated Video Stream & Oscilloscope -->
+                    <div class="instrument-pod">
+                        <div class="pod-header-bar">
+                            <span class="pod-title">
+                                <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <span>Real-Time Optical Vision HUD</span>
+                            </span>
+                            <span id="cam-badge" class="pod-badge">Collimated Stream &bull; 640x480</span>
+                        </div>
+
+                        <!-- Video Chassis -->
+                        <div class="hud-video-chassis" id="video-viewport">
+                            <div class="hud-reticle-corner reticle-tl"></div>
+                            <div class="hud-reticle-corner reticle-tr"></div>
+                            <div class="hud-reticle-corner reticle-bl"></div>
+                            <div class="hud-reticle-corner reticle-br"></div>
+                            <div class="hud-optic-crosshair"></div>
+                            
+                            <img src="/video_feed" alt="Real-Time Driver Vision Stream" id="video-stream">
+                            <video id="browser-video" autoplay playsinline muted style="display:none; width:100%; height:100%; object-fit:cover;"></video>
+                            <canvas id="hud-overlay-canvas" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:4;"></canvas>
+                        </div>
+
+                        <!-- Diagnostic Telemetry Badges -->
+                        <div class="diagnostic-pills-row">
+                            <div class="diagnostic-pill-box">
+                                <span class="pill-meta-tag">Dynamic Baseline</span>
+                                <span id="pill-baseline" class="pill-status-val state-ok">0.320 (Locked)</span>
+                            </div>
+                            <div class="diagnostic-pill-box">
+                                <span class="pill-meta-tag">Speech Disambiguation</span>
+                                <span id="pill-speech" class="pill-status-val state-ok">Silent</span>
+                            </div>
+                            <div class="diagnostic-pill-box">
+                                <span class="pill-meta-tag">Cabin Illumination</span>
+                                <span id="pill-light" class="pill-status-val state-ok">Optimal</span>
+                            </div>
+                            <div class="diagnostic-pill-box">
+                                <span class="pill-meta-tag">Eyewear Telemetry</span>
+                                <span id="pill-eyewear" class="pill-status-val state-ok">Clear</span>
+                            </div>
+                        </div>
+
+                        <!-- Phosphor Oscilloscope -->
+                        <div class="oscilloscope-chassis">
+                            <div class="osc-header-row">
+                                <span class="osc-heading">
+                                    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                                    <span>Biometric Oscilloscope (Rolling 60s)</span>
+                                </span>
+                                <div class="osc-channel-legend">
+                                    <div class="channel-indicator">
+                                        <span class="channel-dot" style="background:var(--cyan-core); box-shadow:0 0 6px var(--cyan-core);"></span>
+                                        <span>EAR</span>
+                                    </div>
+                                    <div class="channel-indicator">
+                                        <span class="channel-dot" style="background:var(--amber-caution); box-shadow:0 0 6px var(--amber-caution);"></span>
+                                        <span>MAR</span>
+                                    </div>
+                                    <div class="channel-indicator">
+                                        <span class="channel-dot" style="background:var(--crimson-emergency); box-shadow:0 0 6px var(--crimson-emergency);"></span>
+                                        <span>Fatigue</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <canvas id="oscCanvas" class="osc-screen-canvas" width="600" height="95"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Right: Precision Biometric Gauges & Gimbal Compass -->
+                    <div class="instrument-pod">
+                        <div class="pod-header-bar">
+                            <span class="pod-title">
+                                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                                <span>Biometric Sensor Fusion</span>
+                            </span>
+                            <span class="pod-badge">Multi-Modal Telemetry</span>
+                        </div>
+
+                        <!-- EAR Gauge -->
+                        <div class="biometric-sensor-gauge">
+                            <div class="gauge-metric-header">
+                                <span class="gauge-label-text">
+                                    <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    <span>Eye Aspect Ratio (EAR)</span>
+                                </span>
+                                <span id="val-ear" class="gauge-readout-num">0.32</span>
+                            </div>
+                            <div class="gauge-recessed-track">
+                                <div id="bar-ear" class="gauge-active-fill" style="width:70%;"></div>
+                                <div class="gauge-threshold-pin" style="left:51%;" title="Critical: 0.23"></div>
+                            </div>
+                            <div class="gauge-scale-legend">
+                                <span>0.00 Closed</span>
+                                <span style="color:var(--text-accent);">0.23 Alert Line</span>
+                                <span>0.45 Open</span>
+                            </div>
+                        </div>
+
+                        <!-- MAR Gauge -->
+                        <div class="biometric-sensor-gauge">
+                            <div class="gauge-metric-header">
+                                <span class="gauge-label-text">
+                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 15h8"/></svg>
+                                    <span>Mouth Aspect Ratio (MAR)</span>
+                                </span>
+                                <span id="val-mar" class="gauge-readout-num">0.22</span>
+                            </div>
+                            <div class="gauge-recessed-track">
+                                <div id="bar-mar" class="gauge-active-fill" style="width:25%;"></div>
+                                <div class="gauge-threshold-pin" style="left:65%;" title="Yawn: 0.55"></div>
+                            </div>
+                            <div class="gauge-scale-legend">
+                                <span>0.00 Closed</span>
+                                <span style="color:var(--amber-caution);">0.55 Yawn Line</span>
+                                <span>0.85 Open</span>
+                            </div>
+                        </div>
+
+                        <!-- PERCLOS Gauge -->
+                        <div class="biometric-sensor-gauge">
+                            <div class="gauge-metric-header">
+                                <span class="gauge-label-text">
+                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                    <span>PERCLOS (% Eye Closure)</span>
+                                </span>
+                                <span id="val-perclos" class="gauge-readout-num">0.0%</span>
+                            </div>
+                            <div class="gauge-recessed-track">
+                                <div id="bar-perclos" class="gauge-active-fill" style="width:0%;"></div>
+                                <div class="gauge-threshold-pin" style="left:20%;" title="Fatigue Line: 20%"></div>
+                            </div>
+                            <div class="gauge-scale-legend">
+                                <span>0% Vigilant</span>
+                                <span style="color:var(--text-accent);">20% Fatigue Line</span>
+                                <span>100% Microsleep</span>
+                            </div>
+                        </div>
+
+                        <!-- Fatigue Score Gauge -->
+                        <div class="biometric-sensor-gauge">
+                            <div class="gauge-metric-header">
+                                <span class="gauge-label-text">
+                                    <svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 3.5z"/></svg>
+                                    <span>Continuous Fatigue Index</span>
+                                </span>
+                                <span id="val-fatigue" class="gauge-readout-num">0.0%</span>
+                            </div>
+                            <div class="gauge-recessed-track">
+                                <div id="bar-fatigue" class="gauge-active-fill" style="width:0%;"></div>
+                                <div class="gauge-threshold-pin" style="left:70%;" title="Critical: 70%"></div>
+                            </div>
+                            <div class="gauge-scale-legend">
+                                <span>0% Safe</span>
+                                <span style="color:var(--amber-caution);">45% Caution</span>
+                                <span style="color:var(--crimson-emergency);">70% Critical</span>
+                            </div>
+                        </div>
+
+                        <hr class="instrument-divider">
+
+                        <!-- 3D Gimbal Head Pose Station -->
+                        <div class="gimbal-pose-station">
+                            <div class="gimbal-telemetry-text">
+                                <span class="gimbal-label">Head Kinematics &amp; Spatial Orientation</span>
+                                <span id="val-pose-direction" class="gimbal-direction-status">Forward Horizon (Attentive)</span>
+                                <span id="val-pose" class="gimbal-numeric-angles">Pitch: 0&deg; | Yaw: 0&deg; | Roll: 0&deg;</span>
+                            </div>
+                            <div class="gimbal-dial-orb">
+                                <div id="gyro-pointer" class="gimbal-needle"></div>
+                            </div>
+                        </div>
+
+                        <hr class="instrument-divider">
+
+                        <!-- Hardware Model Switcher -->
+                        <div class="model-switcher-panel">
+                            <label for="model-selector" class="switcher-meta-label">Active Inference Architecture</label>
+                            <select id="model-selector" class="model-select-hardware" onchange="changeModel(this.value)">
+                                <option value="ensemble">Stacking Ensemble (RF + SVM + Bayes) [INT8]</option>
+                                <option value="rf">Random Forest Classifier (Bagging) [INT8]</option>
+                                <option value="bayes">Bayesian Logistic Regression (MAP Posterior) [INT8]</option>
+                            </select>
+                        </div>
+
+                        <!-- Tactical Quick Triggers -->
+                        <div class="simulation-switch-array">
+                            <span class="sim-header-label">
+                                <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                <span>Hardware Diagnostic Simulation Triggers</span>
+                            </span>
+                            <div class="sim-btn-grid">
+                                <button class="sim-trigger-btn" onclick="simulateState('alert')">Alert Nom.</button>
+                                <button class="sim-trigger-btn" onclick="simulateState('drowsy')">Yawn Evt.</button>
+                                <button class="sim-trigger-btn" onclick="simulateState('sleep')">Microsleep</button>
+                                <button class="sim-trigger-btn" onclick="simulateState('distracted')">Distracted</button>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- CHANNEL 2: BENCHMARK EVALUATION & UNIT ARTIFACTS -->
+            <div id="results-tab" class="tab-channel-pane">
+
+                <!-- Command Hero Header -->
+                <div class="results-command-hero">
+                    <h2 class="results-hero-heading">Academic &amp; Industrial Multi-Model Benchmark Suite</h2>
+                    <p class="results-hero-paragraph">
+                        Comprehensive diagnostic artifacts spanning Machine Learning Units 1–5: Exploratory Data Analysis, Linear Models &amp; Bayesian Posteriors, Dimensionality Reduction &amp; Clustering, Temporal Markov Chains, and Ensemble Classifiers. Evaluated on 801 stratified real-world test samples with sub-millisecond INT8 hardware acceleration.
+                    </p>
+                </div>
+
+                <!-- Leaderboard Chassis -->
+                <div class="leaderboard-chassis">
+                    <div class="leaderboard-action-bar">
+                        <div class="lb-heading-group">
+                            <span class="lb-title-text">Unified Multi-Model Benchmark Leaderboard</span>
+                        </div>
+                        <input type="text" id="lb-search" class="lb-search-input" placeholder="Search architecture..." oninput="filterLeaderboard(this.value)">
+                    </div>
+                    <div class="table-responsive-box">
+                        <table class="telemetry-table" id="leaderboard-table">
+                            <thead>
+                                <tr>
+                                    <th onclick="sortTable(0)">Rank</th>
+                                    <th onclick="sortTable(1)">Model Architecture</th>
+                                    <th onclick="sortTable(2)">Accuracy</th>
+                                    <th onclick="sortTable(3)">Macro F1</th>
+                                    <th onclick="sortTable(4)">Precision</th>
+                                    <th onclick="sortTable(5)">Recall</th>
+                                    <th onclick="sortTable(6)">ROC AUC</th>
+                                    <th onclick="sortTable(7)">Latency (ms)</th>
+                                    <th onclick="sortTable(8)">Throughput (FPS)</th>
+                                    <th onclick="sortTable(9)">Model Size</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboard-body">
+                                <tr><td><span class="rank-badge-metal rank-gold">1</span></td><td style="font-weight:700; color:var(--text-primary);">Bayesian Logistic Regression</td><td class="metric-glow-100">100.00%</td><td class="metric-glow-100">100.00%</td><td>100.00%</td><td>100.00%</td><td>1.0000</td><td>0.0006 ms</td><td>1,548,771</td><td>1.9 KB</td></tr>
+                                <tr><td><span class="rank-badge-metal rank-gold">1</span></td><td style="font-weight:700; color:var(--text-primary);">Support Vector Machine (Linear)</td><td class="metric-glow-100">100.00%</td><td class="metric-glow-100">100.00%</td><td>100.00%</td><td>100.00%</td><td>1.0000</td><td>0.0070 ms</td><td>143,631</td><td>13.0 KB</td></tr>
+                                <tr><td><span class="rank-badge-metal rank-gold">1</span></td><td style="font-weight:700; color:var(--text-primary);">Stacking Ensemble (RF + SVM + Bayes)</td><td class="metric-glow-100">100.00%</td><td class="metric-glow-100">100.00%</td><td>100.00%</td><td>100.00%</td><td>1.0000</td><td>0.1239 ms</td><td>8,070</td><td>330.4 KB</td></tr>
+                                <tr><td><span class="rank-badge-metal rank-gold">1</span></td><td style="font-weight:700; color:var(--text-primary);">Random Forest (100 Trees)</td><td class="metric-glow-100">100.00%</td><td class="metric-glow-100">100.00%</td><td>100.00%</td><td>100.00%</td><td>1.0000</td><td>0.0743 ms</td><td>13,462</td><td>480.8 KB</td></tr>
+                                <tr><td><span class="rank-badge-metal rank-silver">5</span></td><td style="font-weight:700; color:var(--text-primary);">Support Vector Machine (RBF Kernel)</td><td>99.88%</td><td>99.85%</td><td>99.91%</td><td>99.79%</td><td>1.0000</td><td>0.0351 ms</td><td>28,526</td><td>28.2 KB</td></tr>
+                                <tr><td><span class="rank-badge-metal rank-bronze">6</span></td><td style="font-weight:700; color:var(--text-primary);">Decision Tree (Pruned CART)</td><td>99.13%</td><td>99.20%</td><td>99.21%</td><td>99.20%</td><td>0.9999</td><td>0.0006 ms</td><td>1,795,722</td><td>4.6 KB</td></tr>
+                                <tr><td><span class="rank-badge-metal">7</span></td><td style="font-weight:700; color:var(--text-primary);">AdaBoost (SAMME.R Boosting)</td><td>97.63%</td><td>97.93%</td><td>97.81%</td><td>98.19%</td><td>0.9973</td><td>0.0237 ms</td><td>42,127</td><td>29.1 KB</td></tr>
+                                <tr><td><span class="rank-badge-metal">8</span></td><td style="font-weight:700; color:var(--text-primary);">Hidden Markov Model (Viterbi Filter)</td><td>96.50%</td><td>96.71%</td><td>96.75%</td><td>96.69%</td><td>1.0000</td><td>0.0295 ms</td><td>33,935</td><td>1.5 KB</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Category Filtering -->
+                <div class="artifact-filter-nav">
+                    <button class="artifact-chip active" onclick="filterGalleryCategory('all', this)">All Units (18 Plots)</button>
+                    <button class="artifact-chip" onclick="filterGalleryCategory('benchmarks', this)">Performance Benchmarks</button>
+                    <button class="artifact-chip" onclick="filterGalleryCategory('unit1', this)">Unit 1: EDA</button>
+                    <button class="artifact-chip" onclick="filterGalleryCategory('unit2', this)">Unit 2: Linear &amp; SVM</button>
+                    <button class="artifact-chip" onclick="filterGalleryCategory('unit3', this)">Unit 3: Clustering &amp; PCA</button>
+                    <button class="artifact-chip" onclick="filterGalleryCategory('unit4', this)">Unit 4: Temporal HMM</button>
+                    <button class="artifact-chip" onclick="filterGalleryCategory('unit5', this)">Unit 5: Ensembles</button>
+                </div>
+
+                <!-- Section: Performance Benchmarks -->
+                <div class="artifact-unit-section" data-cat="benchmarks">
+                    <div class="artifact-section-header" onclick="toggleUnitSection(this)">
+                        <span class="section-headline-text">Model Performance &amp; Evaluation Curves</span>
+                        <span style="font-size:0.8rem; color:var(--text-muted);">&#9660;</span>
+                    </div>
+                    <div class="gallery-matrix-grid">
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/benchmark_comparison.png', 'Unified Multi-Model Benchmark Comparison')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/benchmark_comparison.png" alt="Benchmark Comparison" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Multi-Model Benchmark Comparison</span>
+                                <span class="card-desc-text">Accuracy, F1-Score, ROC-AUC, and latency across all 8 algorithms.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/multi_model_roc_curves.png', 'Multi-Model ROC Curves')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/multi_model_roc_curves.png" alt="ROC Curves" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Multi-Model ROC Curves</span>
+                                <span class="card-desc-text">True Positive vs False Positive trade-off with micro/macro AUC.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/all_models_confusion_matrices.png', 'Unified Confusion Matrices')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/all_models_confusion_matrices.png" alt="Confusion Matrices" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Unified Confusion Matrices</span>
+                                <span class="card-desc-text">4x4 state misclassification heatmaps across all evaluated models.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/model_calibration_curves.png', 'Probability Calibration Curves')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/model_calibration_curves.png" alt="Calibration Curves" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Probability Calibration</span>
+                                <span class="card-desc-text">Brier reliability calibration comparing posteriors against true labels.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Unit 1 EDA -->
+                <div class="artifact-unit-section" data-cat="unit1">
+                    <div class="artifact-section-header" onclick="toggleUnitSection(this)">
+                        <span class="section-headline-text">Unit 1: Exploratory Data Analysis &amp; Feature Geometry</span>
+                        <span style="font-size:0.8rem; color:var(--text-muted);">&#9660;</span>
+                    </div>
+                    <div class="gallery-matrix-grid">
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/eda/correlation_heatmap.png', 'Feature Correlation Heatmap')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/eda/correlation_heatmap.png" alt="Correlation Heatmap" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Feature Correlation Heatmap</span>
+                                <span class="card-desc-text">Pearson collinearity matrix between EAR, MAR, PERCLOS, and head pose.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/eda/class_distribution.png', 'Physiological State Distribution')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/eda/class_distribution.png" alt="Class Distribution" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Physiological State Distribution</span>
+                                <span class="card-desc-text">Sample balance across Alert, Slightly Drowsy, Drowsy, and Sleep states.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/eda/feature_boxplots.png', 'Biometric Feature Boxplots')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/eda/feature_boxplots.png" alt="Feature Boxplots" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Feature Variance &amp; Outliers</span>
+                                <span class="card-desc-text">Interquartile ranges and sensor distribution bounds across states.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/eda/vif_analysis.png', 'Variance Inflation Factor (VIF)')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/eda/vif_analysis.png" alt="VIF Analysis" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Multicollinearity (VIF)</span>
+                                <span class="card-desc-text">Variance Inflation Factors for sensor feature redundancy elimination.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Unit 2 Linear Models & SVM -->
+                <div class="artifact-unit-section" data-cat="unit2">
+                    <div class="artifact-section-header" onclick="toggleUnitSection(this)">
+                        <span class="section-headline-text">Unit 2: Linear Regression, Bayesian Logistic &amp; SVMs</span>
+                        <span style="font-size:0.8rem; color:var(--text-muted);">&#9660;</span>
+                    </div>
+                    <div class="gallery-matrix-grid">
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/regression_residuals_ridge.png', 'Continuous Fatigue Regressor Residuals')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/regression_residuals_ridge.png" alt="Regression Residuals" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Fatigue Index Residual Diagnostics</span>
+                                <span class="card-desc-text">Residual errors, Q-Q normality chart, and R-squared goodness-of-fit.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/bayesian_posterior_sample.png', 'Bayesian Logistic Posterior Distribution')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/bayesian_posterior_sample.png" alt="Bayesian Posterior" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Bayesian Class Posteriors</span>
+                                <span class="card-desc-text">Calibrated Dirichlet/MAP probability distributions with Shannon entropy.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/svm_decision_boundary_rbf.png', 'SVM Decision Hyperplanes')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/svm_decision_boundary_rbf.png" alt="SVM Boundaries" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">SVM Decision Boundaries</span>
+                                <span class="card-desc-text">2D PCA subspace projections of linear and non-linear RBF margins.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Unit 3 Clustering & PCA -->
+                <div class="artifact-unit-section" data-cat="unit3">
+                    <div class="artifact-section-header" onclick="toggleUnitSection(this)">
+                        <span class="section-headline-text">Unit 3: Dimensionality Reduction &amp; Unsupervised Clustering</span>
+                        <span style="font-size:0.8rem; color:var(--text-muted);">&#9660;</span>
+                    </div>
+                    <div class="gallery-matrix-grid">
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/clustering/pca_scree_plot.png', 'PCA Scree & Variance Explained')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/clustering/pca_scree_plot.png" alt="PCA Scree" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">PCA Scree Plot</span>
+                                <span class="card-desc-text">Cumulative variance explained across orthogonal principal components.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/clustering/kmeans_elbow_silhouette.png', 'K-Means Elbow & Silhouette')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/clustering/kmeans_elbow_silhouette.png" alt="K-Means Analysis" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">K-Means Cluster Optimization</span>
+                                <span class="card-desc-text">Inertia elbow curve paired with silhouette scores across cluster counts.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/clustering/gmm_aic_bic.png', 'GMM AIC & BIC Information Criteria')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/clustering/gmm_aic_bic.png" alt="GMM AIC/BIC" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Gaussian Mixture Model Selection</span>
+                                <span class="card-desc-text">Akaike and Bayesian information criteria curves for Gaussian components.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/clustering/hierarchical_dendrogram.png', 'Hierarchical Ward Dendrogram')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/clustering/hierarchical_dendrogram.png" alt="Dendrogram" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Hierarchical Clustering Dendrogram</span>
+                                <span class="card-desc-text">Agglomerative tree with Ward linkage and cophenetic correlation.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Unit 4 Temporal HMM -->
+                <div class="artifact-unit-section" data-cat="unit4">
+                    <div class="artifact-section-header" onclick="toggleUnitSection(this)">
+                        <span class="section-headline-text">Unit 4: Pure NumPy Hidden Markov Models (Temporal Dynamics)</span>
+                        <span style="font-size:0.8rem; color:var(--text-muted);">&#9660;</span>
+                    </div>
+                    <div class="gallery-matrix-grid">
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/hmm_transition_matrix.png', 'HMM State Transition Matrix')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/hmm_transition_matrix.png" alt="HMM Matrix" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">State Transition Matrix A</span>
+                                <span class="card-desc-text">Self-persistence probabilities (P &ge; 0.90) and forward transitions.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/hmm_state_sequence_decoding.png', 'Viterbi Dynamic Programming Sequence Decoding')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/hmm_state_sequence_decoding.png" alt="Viterbi Decoding" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Viterbi Sequence Decoding</span>
+                                <span class="card-desc-text">Hidden Markov state trajectory filtering natural blinks from fatigue.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Unit 5 Ensembles -->
+                <div class="artifact-unit-section" data-cat="unit5">
+                    <div class="artifact-section-header" onclick="toggleUnitSection(this)">
+                        <span class="section-headline-text">Unit 5: Tree-Based Architectures &amp; Ensemble Meta-Learners</span>
+                        <span style="font-size:0.8rem; color:var(--text-muted);">&#9660;</span>
+                    </div>
+                    <div class="gallery-matrix-grid">
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/random_forest_feature_importance.png', 'Random Forest Gini Feature Importance')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/random_forest_feature_importance.png" alt="RF Importance" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Random Forest MDI Importance</span>
+                                <span class="card-desc-text">Mean decrease in impurity ranking for EAR, MAR, and head kinematics.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/random_forest_oob_trees.png', 'Random Forest OOB Error Convergence')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/random_forest_oob_trees.png" alt="RF OOB" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">OOB Error vs Number of Trees</span>
+                                <span class="card-desc-text">Out-of-bag validation error convergence across 100 ensemble trees.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/decision_tree_structure.png', 'Pruned Decision Tree Structure')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/decision_tree_structure.png" alt="Decision Tree Structure" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">Pruned Decision Tree Rules</span>
+                                <span class="card-desc-text">Cost-complexity pruned CART tree with optimal split thresholds.</span>
+                            </div>
+                        </div>
+                        <div class="diagnostic-card" onclick="openLightbox('/outputs/evaluation/adaboost_stagewise_error.png', 'AdaBoost Stagewise Exponential Loss')">
+                            <div class="card-preview-viewport">
+                                <img src="/outputs/evaluation/adaboost_stagewise_error.png" alt="AdaBoost Error" loading="lazy">
+                                <span class="card-zoom-indicator">Enlarge</span>
+                            </div>
+                            <div class="diagnostic-card-body">
+                                <span class="card-title-text">AdaBoost Error Reduction</span>
+                                <span class="card-desc-text">Sequential exponential loss reduction across 40 boosting rounds.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+
+        <!-- ===== LIGHTBOX MODAL CHASSIS ===== -->
+        <div id="modalLightbox" class="modal-lightbox-backdrop" onclick="closeLightbox(event)">
+            <div class="lightbox-window-chassis" onclick="event.stopPropagation()">
+                <button class="lightbox-dismiss-x" onclick="closeLightbox()">&times;</button>
+                <button class="lightbox-stepper-btn stepper-prev" onclick="prevLightboxImage()">&#10094;</button>
+                <button class="lightbox-stepper-btn stepper-next" onclick="nextLightboxImage()">&#10095;</button>
+                
+                <img id="lightboxImg" class="lightbox-main-graphic" src="" alt="Diagnostic High-Resolution Plot">
+                
+                <div class="lightbox-footer-controls">
+                    <span id="lightboxCaption" class="lightbox-caption-label">Diagnostic Plot</span>
+                    <a id="lightboxDownload" href="#" download="diagnostic_plot.png" class="tactile-btn btn-cyan">
+                        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Download PNG</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== FLOATING TOAST DOCK ===== -->
+        <div class="toast-dock-station" id="toastShelf"></div>
+
+        <!-- ===== COMMAND FOOTER ===== -->
+        <footer class="cockpit-footer">
+            <span><strong>DRIVER SAFETY AI</strong> &bull; Production Edge Telemetry Cockpit</span>
+            <span>OpenCV 4.10 &bull; MediaPipe 478 &bull; scikit-learn 1.3 &bull; ONNX INT8 Runtime | <a href="https://github.com/bankutech/Real-Time-Drowsiness-Detection-and-Alert-System" target="_blank">Repository</a></span>
+        </footer>
+
+    </div><!-- /cockpit-shell -->
+
+    <!-- ==========================================================================
+       18. COCKPIT INTERACTIVE SCRIPT & REAL-TIME LOGIC
+       ========================================================================== -->
+    <script>
+        // ===== UPTIME MISSION COUNTER =====
+        const systemStartTime = Date.now();
+        function updateUptimeDisplay() {
+            const totalSec = Math.floor((Date.now() - systemStartTime) / 1000);
+            const hrs = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+            const mins = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+            const secs = String(totalSec % 60).padStart(2, '0');
+            const el = document.getElementById('stat-uptime');
+            if (el) el.innerText = hrs + ':' + mins + ':' + secs;
+        }
+        setInterval(updateUptimeDisplay, 1000);
+
+        // ===== TOAST NOTIFICATION HELPER =====
+        function showToast(message, type = 'info') {
+            const shelf = document.getElementById('toastShelf');
+            if (!shelf) return;
+            const toast = document.createElement('div');
+            toast.className = 'tactile-toast-pill toast-' + type;
+            toast.innerText = message;
+            shelf.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(10px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ===== CHANNEL TAB SWITCHER =====
+        function switchChannel(tabId, btn) {
+            document.querySelectorAll('.channel-tab-pill').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-channel-pane').forEach(p => p.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const pane = document.getElementById(tabId);
+            if (pane) pane.classList.add('active');
+        }
+
+        // ===== MESH OVERLAY TOGGLE =====
+        let meshOverlayActive = false;
+        function toggleMeshOverlay() {
+            meshOverlayActive = !meshOverlayActive;
+            const btn = document.getElementById('btn-mesh');
+            const lbl = document.getElementById('mesh-label');
+            if (meshOverlayActive) {
+                lbl.innerText = 'HUD Mesh: ON';
+                btn.classList.add('active-latch');
+                showToast('Facial Mesh HUD Enabled', 'info');
+            } else {
+                lbl.innerText = 'HUD Mesh: OFF';
+                btn.classList.remove('active-latch');
+                showToast('Facial Mesh HUD Disabled', 'info');
+            }
+        }
+
+        // ===== WEB AUDIO & TONE SYNTHESIS =====
+        let audioCtx = null;
+        let soundEnabled = true;
+        let lastSoundTime = 0;
+
+        function initAudio() {
+            if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+            if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+        }
+
+        function toggleAudio() {
+            initAudio();
+            soundEnabled = !soundEnabled;
+            const lbl = document.getElementById('sound-label');
+            const btn = document.getElementById('btn-sound');
+
+            if (soundEnabled) {
+                lbl.innerText = 'Audio: ON';
+                btn.classList.remove('active-latch');
+                showToast('Safety audio chimes unmuted', 'success');
+                playAlertTone(1);
+            } else {
+                lbl.innerText = 'Audio: MUTE';
+                btn.classList.add('active-latch');
+                showToast('Safety audio muted', 'warn');
+            }
+        }
+
+        function playAlertTone(level) {
+            if (!soundEnabled) return;
+            initAudio();
+            const now = Date.now();
+            if (now - lastSoundTime < 1200) return;
+            lastSoundTime = now;
+            try {
+                if (level === 1) {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(1174, audioCtx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.35);
+                } else if (level === 2) {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(1250, audioCtx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(1600, audioCtx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.45);
+                }
+            } catch (err) { console.debug('Audio error:', err); }
+        }
+
+        // ===== CALIBRATION TRIGGER =====
+        function triggerCalibration() {
+            initAudio();
+            fetch('/api/calibrate').then(r => r.json()).then(() => {
+                const banner = document.getElementById('alert-banner');
+                banner.className = 'cockpit-alert-beacon alert-level-1';
+                document.getElementById('alert-text').innerText = 'CALIBRATING BASELINE (MAINTAIN NATURAL POSTURE)...';
+                document.getElementById('alert-badge').innerText = 'CALIBRATING';
+                showToast('Driver baseline calibration initiated', 'info');
+            }).catch(() => {
+                showToast('Calibration request failed', 'warn');
+            });
+        }
+
+        // ===== MODEL SWITCHER =====
+        const modelNames = {
+            ensemble: 'Stacking Ensemble (INT8)',
+            rf: 'Random Forest (INT8)',
+            bayes: 'Bayesian Logistic (INT8)'
+        };
+        function changeModel(modelVal) {
+            fetch('/api/set_model?model=' + encodeURIComponent(modelVal)).then(r => r.json()).then(() => {
+                const name = modelNames[modelVal] || modelVal;
+                document.getElementById('stat-model').innerHTML = name + ' <span class="node-badge-int8">INT8</span>';
+                showToast('Inference model switched to ' + name, 'success');
+            }).catch(() => {
+                showToast('Failed to switch model', 'warn');
+            });
+        }
+
+        // ===== SIMULATOR TRIGGERS (DEMO MODE) =====
+        function simulateState(state) {
+            initAudio();
+            let fakeTelem = {};
+            if (state === 'alert') {
+                fakeTelem = { ear: 0.34, mar: 0.18, perclos: 0.0, fatigue_score: 0.05, alert_level: 0, status_text: 'DRIVER STATUS: VIGILANT & ATTENTIVE', head_pose_direction: 'Forward Horizon (Attentive)', pitch: 2, yaw: -1, roll: 0 };
+                showToast('Simulated normal vigilant state', 'success');
+            } else if (state === 'drowsy') {
+                fakeTelem = { ear: 0.28, mar: 0.72, perclos: 0.08, fatigue_score: 0.48, alert_level: 1, status_text: 'CAUTION: FREQUENT YAWNING DETECTED', head_pose_direction: 'Forward Horizon', pitch: -5, yaw: 2, roll: 1 };
+                showToast('Simulated yawning event', 'warn');
+            } else if (state === 'sleep') {
+                fakeTelem = { ear: 0.12, mar: 0.22, perclos: 0.85, fatigue_score: 0.92, alert_level: 2, status_text: 'CRITICAL: MICROSLEEP DETECTED! WAKE UP!', head_pose_direction: 'Head Slumped Forward', pitch: -22, yaw: 0, roll: -3 };
+                showToast('CRITICAL microsleep emergency simulated', 'warn');
+            } else if (state === 'distracted') {
+                fakeTelem = { ear: 0.31, mar: 0.19, perclos: 0.04, fatigue_score: 0.35, alert_level: 1, status_text: 'WARNING: DRIVER GAZE DISTRACTED', head_pose_direction: 'Gaze Diverted Left', pitch: 3, yaw: -38, roll: 2 };
+                showToast('Simulated gaze distraction', 'info');
+            }
+            renderTelemetryData(fakeTelem);
+            if (fakeTelem.alert_level > 0) playAlertTone(fakeTelem.alert_level);
+        }
+
+        // ===== PHOSPHOR BIOMETRIC OSCILLOSCOPE =====
+        const oscHistory = { ear: [], mar: [], fatigue: [], maxPoints: 120 };
+        function updateOscilloscope(ear, mar, fatigue) {
+            const canvas = document.getElementById('oscCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            oscHistory.ear.push(ear || 0.32);
+            oscHistory.mar.push(mar || 0.20);
+            oscHistory.fatigue.push(fatigue || 0.0);
+
+            if (oscHistory.ear.length > oscHistory.maxPoints) {
+                oscHistory.ear.shift();
+                oscHistory.mar.shift();
+                oscHistory.fatigue.shift();
+            }
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Phosphor Background Grid
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
+            ctx.lineWidth = 1;
+            for (let y = 19; y < h; y += 19) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+            }
+
+            // EAR 0.23 Threshold Guide
+            const earThreshY = h - (0.23 / 0.45) * h;
+            ctx.strokeStyle = 'rgba(0, 240, 255, 0.25)';
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath(); ctx.moveTo(0, earThreshY); ctx.lineTo(w, earThreshY); ctx.stroke();
+
+            // Fatigue 0.70 Critical Line
+            const fatThreshY = h - 0.70 * h;
+            ctx.strokeStyle = 'rgba(244, 63, 94, 0.35)';
+            ctx.beginPath(); ctx.moveTo(0, fatThreshY); ctx.lineTo(w, fatThreshY); ctx.stroke();
+            ctx.setLineDash([]);
+
+            function drawTrace(data, maxVal, strokeColor, fillColor) {
+                if (data.length < 2) return;
+                const step = w / (oscHistory.maxPoints - 1);
+                const startX = (oscHistory.maxPoints - data.length) * step;
+
+                ctx.beginPath();
+                for (let i = 0; i < data.length; i++) {
+                    const x = startX + i * step;
+                    const norm = Math.min(1, Math.max(0, data[i] / maxVal));
+                    const y = h - norm * (h - 8) - 4;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                if (fillColor) {
+                    ctx.lineTo(w, h);
+                    ctx.lineTo(startX, h);
+                    ctx.closePath();
+                    ctx.fillStyle = fillColor;
+                    ctx.fill();
+                }
+            }
+
+            drawTrace(oscHistory.fatigue, 1.0, '#f43f5e', 'rgba(244, 63, 94, 0.08)');
+            drawTrace(oscHistory.mar, 0.85, '#f59e0b', null);
+            drawTrace(oscHistory.ear, 0.45, '#00f0ff', 'rgba(0, 240, 255, 0.06)');
+        }
+
+        // ===== TELEMETRY DATA PARSER & DISPATCHER =====
+        function renderTelemetryData(d) {
+            if (!d || Object.keys(d).length === 0) return;
+
+            const fps = d.fps !== undefined ? Number(d.fps).toFixed(1) : '--';
+            const lat = d.latency_ms !== undefined ? Number(d.latency_ms).toFixed(1) : '--';
+            const fpsEl = document.getElementById('stat-fps');
+            const latEl = document.getElementById('stat-latency');
+            if (fpsEl) fpsEl.innerText = fps + ' FPS';
+            if (latEl) latEl.innerText = lat + ' ms';
+
+            const earVal = d.ear || 0;
+            const marVal = d.mar || 0;
+            const pclVal = d.perclos || 0;
+            const fatVal = d.fatigue_score || 0;
+
+            document.getElementById('val-ear').innerText = earVal.toFixed(2);
+            document.getElementById('val-mar').innerText = marVal.toFixed(2);
+            document.getElementById('val-perclos').innerText = (pclVal * 100).toFixed(1) + '%';
+            document.getElementById('val-fatigue').innerText = (fatVal * 100).toFixed(1) + '%';
+
+            // Head Pose Compass
+            const poseDir = d.head_pose_direction || 'Forward Horizon (Attentive)';
+            const poseEl = document.getElementById('val-pose-direction');
+            poseEl.innerText = poseDir;
+            if (poseDir.includes('Ahead') || poseDir.includes('Horizon') || poseDir.includes('Attentive')) {
+                poseEl.style.color = 'var(--emerald-attentive)';
+            } else if (poseDir.includes('Distracted') || poseDir.includes('Slumped') || poseDir.includes('Down')) {
+                poseEl.style.color = 'var(--crimson-emergency)';
+            } else {
+                poseEl.style.color = 'var(--amber-caution)';
+            }
+            document.getElementById('val-pose').innerText = 'Pitch: ' + (d.pitch||0).toFixed(0) + '° | Yaw: ' + (d.yaw||0).toFixed(0) + '° | Roll: ' + (d.roll||0).toFixed(0) + '°';
+
+            const gyroPointer = document.getElementById('gyro-pointer');
+            if (gyroPointer) {
+                gyroPointer.style.transform = 'rotate(' + (d.yaw || 0) + 'deg)';
+            }
+
+            // Meter Bar Fill Rates
+            const earPct = Math.min(100, Math.max(0, (earVal / 0.45) * 100));
+            const marPct = Math.min(100, Math.max(0, (marVal / 0.85) * 100));
+            const pclPct = Math.min(100, Math.max(0, pclVal * 100));
+            const fatPct = Math.min(100, Math.max(0, fatVal * 100));
+
+            setMeterGauge('bar-ear', earPct, earVal < 0.23 ? 'fill-crit' : '');
+            setMeterGauge('bar-mar', marPct, marVal > 0.55 ? 'fill-crit' : '');
+            setMeterGauge('bar-perclos', pclPct, pclVal > 0.20 ? 'fill-crit' : '');
+            setMeterGauge('bar-fatigue', fatPct, fatVal >= 0.70 ? 'fill-crit' : (fatVal >= 0.45 ? 'fill-warn' : ''));
+
+            // Alert Banner Transition
+            const lvl = d.alert_level || 0;
+            const banner = document.getElementById('alert-banner');
+            banner.className = 'cockpit-alert-beacon alert-level-' + lvl;
+            document.getElementById('alert-text').innerText = d.status_text || 'DRIVER STATUS: VIGILANT & ATTENTIVE';
+            document.getElementById('alert-badge').innerText = 'LEVEL ' + lvl + (lvl === 2 ? ' • CRITICAL' : (lvl === 1 ? ' • CAUTION' : ' • NORMAL'));
+            if (lvl > 0) playAlertTone(lvl);
+
+            // Tab Title Sync
+            const titlePrefix = lvl === 2 ? '[ALERT] ' : (lvl === 1 ? '[CAUTION] ' : '');
+            document.title = titlePrefix + 'Driver Safety AI';
+
+            // Diagnostic Badges
+            const pBase = document.getElementById('pill-baseline');
+            if (d.calibrating) {
+                pBase.innerText = 'Calibrating ' + (d.calibration_progress||0) + '%';
+                pBase.className = 'pill-status-val state-warn';
+            } else {
+                pBase.innerText = (d.baseline_ear || 0.32).toFixed(3) + ' (Locked)';
+                pBase.className = 'pill-status-val state-ok';
+            }
+
+            const pSp = document.getElementById('pill-speech');
+            pSp.innerText = d.is_speaking ? 'Speaking' : 'Silent';
+            pSp.className = d.is_speaking ? 'pill-status-val state-warn' : 'pill-status-val state-ok';
+
+            const pLi = document.getElementById('pill-light');
+            pLi.innerText = d.lighting_quality || 'Optimal';
+            pLi.className = d.low_light ? 'pill-status-val state-warn' : 'pill-status-val state-ok';
+
+            const pEy = document.getElementById('pill-eyewear');
+            if (d.eyewear_detected) {
+                pEy.innerText = (d.eyewear_label || 'Glasses');
+                pEy.className = 'pill-status-val state-warn';
+            } else {
+                pEy.innerText = 'Clear';
+                pEy.className = 'pill-status-val state-ok';
+            }
+
+            updateOscilloscope(earVal, marVal, fatVal);
+        }
+
+        function setMeterGauge(id, pct, cls) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.style.width = pct + '%';
+            el.className = 'gauge-active-fill' + (cls ? ' ' + cls : '');
+        }
+
+        // ===== REAL-TIME TELEMETRY POLLING LOOP =====
+        function pollTelemetry() {
+            fetch('/api/telemetry')
+                .then(r => r.json())
+                .then(data => renderTelemetryData(data))
+                .catch(() => {})
+                .finally(() => { setTimeout(pollTelemetry, 150); });
+        }
+        pollTelemetry();
+
+        // ===== BROWSER WEBCAM STREAMING & CANVAS OVERLAY =====
+        let browserWebcamActive = false;
+        let webcamStream = null;
+        let postInterval = null;
+
+        function toggleBrowserWebcam() {
+            const videoEl = document.getElementById('browser-video');
+            const streamImg = document.getElementById('video-stream');
+            const canvasEl = document.getElementById('hud-overlay-canvas');
+            const camLabel = document.getElementById('cam-label');
+            const camBadge = document.getElementById('cam-badge');
+            const btnWebcam = document.getElementById('btn-webcam');
+
+            if (!browserWebcamActive) {
+                navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } })
+                    .then(stream => {
+                        fetch('/api/release_camera').catch(() => {});
+                        webcamStream = stream;
+                        videoEl.srcObject = stream;
+                        videoEl.style.display = 'block';
+                        canvasEl.style.display = 'block';
+                        streamImg.style.display = 'none';
+                        browserWebcamActive = true;
+                        camLabel.innerText = 'Stop Webcam';
+                        camBadge.innerText = 'Direct Browser Capture &bull; 640x480';
+                        btnWebcam.classList.add('active-latch');
+                        showToast('Client camera active &bull; Streaming frames to server', 'success');
+
+                        const offscreenCanvas = document.createElement('canvas');
+                        offscreenCanvas.width = 640;
+                        offscreenCanvas.height = 480;
+                        const offCtx = offscreenCanvas.getContext('2d');
+
+                        postInterval = setInterval(() => {
+                            if (!browserWebcamActive || videoEl.readyState !== 4) return;
+                            offCtx.drawImage(videoEl, 0, 0, 640, 480);
+                            offscreenCanvas.toBlob(blob => {
+                                if (!blob) return;
+                                fetch('/api/process_frame', { method: 'POST', body: blob })
+                                    .then(r => r.json())
+                                    .then(data => {
+                                        renderTelemetryData(data);
+                                        if (meshOverlayActive) drawFaceMeshOverlay(canvasEl, data);
+                                        else {
+                                            const ctx = canvasEl.getContext('2d');
+                                            ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+                                        }
+                                    }).catch(() => {});
+                            }, 'image/jpeg', 0.75);
+                        }, 80);
+                    })
+                    .catch(err => {
+                        showToast('Camera access denied or device not found', 'warn');
+                        console.error('Camera error:', err);
+                    });
+            } else {
+                if (webcamStream) {
+                    webcamStream.getTracks().forEach(t => t.stop());
+                    webcamStream = null;
+                }
+                clearInterval(postInterval);
+                videoEl.style.display = 'none';
+                canvasEl.style.display = 'none';
+                streamImg.style.display = 'block';
+                streamImg.src = '/video_feed?t=' + Date.now();
+                browserWebcamActive = false;
+                camLabel.innerText = 'My Webcam';
+                camBadge.innerText = 'Collimated Stream &bull; 640x480';
+                btnWebcam.classList.remove('active-latch');
+                showToast('Reverted to server optical feed', 'info');
+            }
+        }
+
+        function drawFaceMeshOverlay(canvas, data) {
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw Targeting Reticle
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 65, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.strokeStyle = 'rgba(0, 240, 255, 0.6)';
+            ctx.beginPath();
+            ctx.moveTo(cx - 80, cy); ctx.lineTo(cx - 50, cy);
+            ctx.moveTo(cx + 50, cy); ctx.lineTo(cx + 80, cy);
+            ctx.moveTo(cx, cy - 80); ctx.lineTo(cx, cy - 50);
+            ctx.moveTo(cx, cy + 50); ctx.lineTo(cx, cy + 80);
+            ctx.stroke();
+        }
+
+        // ===== LEADERBOARD SEARCH & SORTING =====
+        function filterLeaderboard(query) {
+            const q = (query || '').toLowerCase();
+            const rows = document.querySelectorAll('#leaderboard-body tr');
+            rows.forEach(r => {
+                const text = r.innerText.toLowerCase();
+                r.style.display = text.includes(q) ? '' : 'none';
+            });
+        }
+
+        let sortDirection = {};
+        function sortTable(colIndex) {
+            const table = document.getElementById('leaderboard-table');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const isAsc = !sortDirection[colIndex];
+            sortDirection[colIndex] = isAsc;
+
+            rows.sort((a, b) => {
+                const aCell = a.children[colIndex].innerText.replace(/[%$ms,]/g, '').trim();
+                const bCell = b.children[colIndex].innerText.replace(/[%$ms,]/g, '').trim();
+                const aNum = parseFloat(aCell);
+                const bNum = parseFloat(bCell);
+                if (!isNaN(aNum) && !isNaN(bNum)) return isAsc ? aNum - bNum : bNum - aNum;
+                return isAsc ? aCell.localeCompare(bCell) : bCell.localeCompare(aCell);
+            });
+
+            rows.forEach(r => tbody.appendChild(r));
+        }
+
+        // ===== ARTIFACT CATEGORY FILTERING =====
+        function filterGalleryCategory(cat, btn) {
+            document.querySelectorAll('.artifact-chip').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const sections = document.querySelectorAll('.artifact-unit-section');
+            sections.forEach(s => {
+                if (cat === 'all' || s.getAttribute('data-cat') === cat) {
+                    s.style.display = 'block';
+                } else {
+                    s.style.display = 'none';
+                }
+            });
+        }
+
+        function toggleUnitSection(header) {
+            const grid = header.nextElementSibling;
+            const arrow = header.querySelector('span:last-child');
+            if (grid.style.display === 'none') {
+                grid.style.display = 'grid';
+                arrow.innerHTML = '&#9660;';
+            } else {
+                grid.style.display = 'none';
+                arrow.innerHTML = '&#9654;';
+            }
+        }
+
+        // ===== HIGH-RESOLUTION LIGHTBOX =====
+        let allGalleryImages = [];
+        let currentLightboxIndex = 0;
+
+        function refreshGalleryRegistry() {
+            allGalleryImages = [];
+            document.querySelectorAll('.diagnostic-card').forEach((card, idx) => {
+                const img = card.querySelector('img');
+                const title = card.querySelector('.card-title-text').innerText;
+                if (img) allGalleryImages.push({ src: img.src, title: title });
+            });
+        }
+
+        function openLightbox(src, caption) {
+            refreshGalleryRegistry();
+            const modal = document.getElementById('modalLightbox');
+            const img = document.getElementById('lightboxImg');
+            const cap = document.getElementById('lightboxCaption');
+            const down = document.getElementById('lightboxDownload');
+
+            img.src = src;
+            cap.innerText = caption;
+            down.href = src;
+            down.download = (caption.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()) + '.png';
+
+            currentLightboxIndex = allGalleryImages.findIndex(i => i.src.includes(src) || src.includes(i.src));
+            if (currentLightboxIndex === -1) currentLightboxIndex = 0;
+
+            modal.classList.add('active');
+        }
+
+        function closeLightbox(e) {
+            if (e && e.target !== document.getElementById('modalLightbox') && !e.target.classList.contains('lightbox-dismiss-x')) return;
+            document.getElementById('modalLightbox').classList.remove('active');
+        }
+
+        function prevLightboxImage() {
+            if (allGalleryImages.length === 0) return;
+            currentLightboxIndex = (currentLightboxIndex - 1 + allGalleryImages.length) % allGalleryImages.length;
+            const item = allGalleryImages[currentLightboxIndex];
+            openLightbox(item.src, item.title);
+        }
+
+        function nextLightboxImage() {
+            if (allGalleryImages.length === 0) return;
+            currentLightboxIndex = (currentLightboxIndex + 1) % allGalleryImages.length;
+            const item = allGalleryImages[currentLightboxIndex];
+            openLightbox(item.src, item.title);
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') document.getElementById('modalLightbox').classList.remove('active');
+            if (e.key === 'ArrowLeft') prevLightboxImage();
+            if (e.key === 'ArrowRight') nextLightboxImage();
+        });
+    </script>
+</body>
+</html>
